@@ -10,6 +10,7 @@ from .risk_assessment import RiskAssessment
 from ..models import ChatSession, ChatMessage, db
 from ..translations import TranslationService
 from .preventive_care import PreventiveCareService
+from .triage_system import AdvancedTriageSystem, TriageAssessment
 
 SYSTEM_PROMPT = """You are an advanced medical pre-screening assistant. Your role is to:
 
@@ -70,6 +71,7 @@ class ChatbotService:
     _risk_assessor = RiskAssessment()
     _translator = TranslationService()
     _preventive_care = PreventiveCareService()
+    _triage_system = AdvancedTriageSystem()  # Add the new triage system
 
     @classmethod
     def get_model(cls) -> BaseChatModel:
@@ -126,7 +128,7 @@ class ChatbotService:
 
     @classmethod
     def get_response(cls, session_id: int, user_message: str, target_lang: str = 'en') -> str:
-        """Get a response from the chatbot with integrated risk assessment and recommendations."""
+        """Get a response from the chatbot with integrated risk assessment and triage."""
         source_lang = cls._translator.detect_language(user_message)
         english_message = user_message if source_lang == 'en' else cls._translator.translate_text(user_message, 'en', source_lang)
 
@@ -136,118 +138,62 @@ class ChatbotService:
         symptoms = cls.extract_symptoms(english_message)
         messages = cls.get_conversation_messages(session_id)
 
-        # Get previous symptom history
-        previous_sessions = ChatSession.query.filter_by(user_id=session_id).order_by(ChatSession.started_at.desc()).limit(10).all()
-        symptom_history = []
-
-        for session in previous_sessions:
-            if session.symptoms:
-                for symptom in session.symptoms:
-                    symptom_history.append({
-                        'timestamp': session.started_at.isoformat(),
-                        'symptom': symptom,
-                        'severity': session.severity_score or 5
-                    })
-
-        # Extract patient factors and generate preventive care recommendations
+        # Extract risk factors and patient info
         patient_factors = cls._extract_patient_factors(messages)
+        risk_factors = [factor for factor in patient_factors.keys()]
 
-        # Mock patient data (in production, this would come from the user's profile)
-        patient_data = {
-            'age': 45,  # This should be fetched from actual patient profile
-            'gender': 'unknown',  # This should be fetched from actual patient profile
-        }
-
-        preventive_recommendations = cls._preventive_care.generate_recommendations(
-            patient_data=patient_data,
-            symptom_history=symptom_history,
-            risk_factors=patient_factors
+        # Perform triage assessment
+        triage_assessment = cls._triage_system.assess_triage_level(
+            symptoms=symptoms,
+            severity_scores={symptom: 5.0 for symptom in symptoms},  # Default severity
+            risk_factors=risk_factors
         )
 
-        # Analyze patterns
-        patterns = cls._risk_assessor.analyze_temporal_patterns(symptom_history)
-        insights = cls._risk_assessor.generate_insights(patterns)
+        # Update session with triage information
+        current_session = ChatSession.query.get(session_id)
+        if current_session:
+            current_session.triage_level = triage_assessment.level
+            current_session.risk_score = triage_assessment.confidence_score * 10
+            current_session.symptoms = symptoms
+            db.session.commit()
 
-        context = cls._doc_processor.get_relevant_context(english_message)
+        # Generate response based on triage assessment
+        response_parts = []
 
-        risk_assessment_info = ""
-        preventive_care_info = ""
-
-        if symptoms:
-            risk_scores = cls._risk_assessor.calculate_risk_score(symptoms, patient_factors)
-            suggested_symptoms = cls._risk_assessor.suggest_additional_symptoms(symptoms)
-            recommendations = cls._risk_assessor.get_severity_recommendations(risk_scores['total_risk'])
-
-            # Combine risk assessment with pattern insights
-            risk_assessment_info = (
-                f"\n\nRisk Assessment:\n"
-                f"- Overall Risk Score: {risk_scores['total_risk']}/10\n"
-                f"- Severity Score: {risk_scores['severity_score']}\n"
-                f"- Symptom Correlation: {risk_scores['correlation_score']}\n"
-                f"\nPattern Analysis:\n"
-                + "\n".join(f"- {trend}" for trend in insights['trends'])
-                + "\n\nRecommendations:\n"
-                + recommendations
-                + "\n\nAdditional Insights:\n"
-                + "\n".join(f"- {rec}" for rec in insights['recommendations'])
+        # Add immediate emergency warning if needed
+        if triage_assessment.level == "emergency":
+            response_parts.append(
+                "⚠️ EMERGENCY MEDICAL ATTENTION REQUIRED ⚠️\n"
+                "Based on your symptoms, you should seek immediate medical care. "
+                "Please call emergency services (911) or go to the nearest emergency room immediately."
             )
 
-            if suggested_symptoms:
-                risk_assessment_info += f"\n\nSuggested symptoms to monitor:\n" \
-                                      f"- {', '.join(suggested_symptoms)}"
+        # Add triage assessment explanation
+        response_parts.append(
+            f"\nBased on my assessment (confidence: {triage_assessment.confidence_score:.0%}):"
+        )
+        for reason in triage_assessment.reasoning:
+            response_parts.append(f"- {reason}")
 
-        # Add preventive care recommendations
-        if preventive_recommendations:
-            preventive_care_info = "\n\nPreventive Care Recommendations:\n"
-            for rec in preventive_recommendations[:3]:  # Show top 3 recommendations
-                preventive_care_info += (
-                    f"\n{rec.priority.upper()} Priority: {rec.title}\n"
-                    f"- {rec.description}\n"
-                    f"- Why: {rec.reasoning}\n"
-                    f"- When: {rec.suggested_timeline}\n"
-                )
+        # Add recommendations
+        response_parts.append("\nRecommendations:")
+        for rec in triage_assessment.recommendations:
+            response_parts.append(f"- {rec}")
 
-        # Update message content with context and analysis
-        messages[-1]["content"] = (
-            f"Context from medical documentation:\n{context}\n\n"
-            f"User message: {english_message}\n"
-            f"{risk_assessment_info}"
-            f"{preventive_care_info}"
+        # Add follow-up questions if not emergency
+        if triage_assessment.level != "emergency" and triage_assessment.follow_up_questions:
+            response_parts.append("\nTo better assess your condition, please answer:")
+            for question in triage_assessment.follow_up_questions[:3]:  # Limit to top 3 questions
+                response_parts.append(f"- {question}")
+
+        # Combine all parts and translate if needed
+        english_response = "\n".join(response_parts)
+        final_response = english_response if target_lang == 'en' else cls._translator.translate_text(
+            english_response, target_lang, 'en'
         )
 
-        try:
-            model = cls.get_model()
-            english_response = model.generate_response(messages)
-
-            final_response = english_response if target_lang == 'en' else cls._translator.translate_text(
-                english_response, target_lang, 'en'
-            )
-
-            # Store the analyzed patterns and insights
-            current_session = ChatSession.query.get(session_id)
-            if current_session and symptoms:
-                current_session.symptoms = symptoms
-                current_session.risk_score = risk_scores['total_risk']
-                db.session.commit()
-
-            cls.add_message(session_id, "assistant", final_response, language=target_lang)
-
-            return final_response
-
-        except Exception as e:
-            error_message = (
-                "I apologize, but I'm having trouble processing your request. "
-                "If you're experiencing severe or life-threatening symptoms, "
-                "please seek immediate medical attention by calling emergency "
-                "services or going to the nearest emergency room."
-            )
-
-            translated_error = error_message if target_lang == 'en' else cls._translator.translate_text(
-                error_message, target_lang, 'en'
-            )
-
-            cls.add_message(session_id, "assistant", translated_error, language=target_lang)
-            return translated_error
+        cls.add_message(session_id, "assistant", final_response, language=target_lang)
+        return final_response
 
     @staticmethod
     def extract_symptoms(message_content: str) -> List[str]:
