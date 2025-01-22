@@ -30,9 +30,20 @@ export const appointments = pgTable("appointments", {
   patientId: integer("patient_id").references(() => users.id).notNull(),
   doctorId: integer("doctor_id").references(() => users.id).notNull(),
   dateTime: timestamp("date_time").notNull(),
-  status: text("status", { enum: ["scheduled", "completed", "cancelled"] }).notNull(),
+  endTime: timestamp("end_time").notNull(),
+  type: text("type", { enum: ["virtual", "in_person"] }).notNull(),
+  status: text("status", { enum: ["requested", "scheduled", "completed", "cancelled", "rescheduled"] }).notNull(),
+  priority: text("priority", { enum: ["low", "medium", "high", "urgent"] }).notNull().default("medium"),
+  duration: integer("duration").notNull(), // duration in minutes
   notes: text("notes"),
+  symptoms: text("symptoms").array(),
+  preferredTimeSlots: jsonb("preferred_time_slots"), // Array of preferred time ranges
+  requiredEquipment: text("required_equipment").array(),
   videoRoomId: text("video_room_id"),
+  schedulingScore: integer("scheduling_score"), // AI-calculated scheduling priority score
+  lastRescheduled: timestamp("last_rescheduled"),
+  cancellationReason: text("cancellation_reason"),
+  reminderSent: boolean("reminder_sent").notNull().default(false),
 });
 
 export const medicalRecords = pgTable("medical_records", {
@@ -82,6 +93,19 @@ export const preventiveCareRecommendations = pgTable("preventive_care_recommenda
   sourceReferences: jsonb("source_references"),
 });
 
+export const doctorSchedule = pgTable("doctor_schedule", {
+  id: serial("id").primaryKey(),
+  doctorId: integer("doctor_id").references(() => users.id).notNull(),
+  dayOfWeek: integer("day_of_week").notNull(), // 0-6 for Sunday-Saturday
+  startTime: text("start_time").notNull(), // Format: "HH:mm"
+  endTime: text("end_time").notNull(), // Format: "HH:mm"
+  isAvailable: boolean("is_available").notNull().default(true),
+  breakStart: text("break_start"), // Format: "HH:mm"
+  breakEnd: text("break_end"), // Format: "HH:mm"
+  maxAppointmentsPerDay: integer("max_appointments_per_day"),
+  specialtyEquipment: text("specialty_equipment").array(),
+});
+
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
 export type InsertUser = typeof users.$inferInsert;
@@ -111,3 +135,8 @@ export const insertPreventiveCareRecommendationSchema = createInsertSchema(preve
 export const selectPreventiveCareRecommendationSchema = createSelectSchema(preventiveCareRecommendations);
 export type InsertPreventiveCareRecommendation = typeof preventiveCareRecommendations.$inferInsert;
 export type SelectPreventiveCareRecommendation = typeof preventiveCareRecommendations.$inferSelect;
+
+export const insertDoctorScheduleSchema = createInsertSchema(doctorSchedule);
+export const selectDoctorScheduleSchema = createSelectSchema(doctorSchedule);
+export type InsertDoctorSchedule = typeof doctorSchedule.$inferInsert;
+export type SelectDoctorSchedule = typeof doctorSchedule.$inferSelect;

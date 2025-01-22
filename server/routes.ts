@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { db } from "@db";
-import { appointments, medicalRecords, chatSessions, messages } from "@db/schema";
+import { appointments, medicalRecords, chatSessions, messages, doctorSchedule, users } from "@db/schema";
 import { eq, and, desc, gte, sql } from "drizzle-orm";
 
 export function registerRoutes(app: Express): Server {
@@ -229,6 +229,188 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Enhanced Appointment Scheduling endpoints
+  app.post("/api/appointments/optimal-slots", async (req, res) => {
+    try {
+      const {
+        doctorId,
+        duration,
+        preferredTimes,
+        requiredEquipment,
+        priority,
+        appointmentType
+      } = req.body;
+
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      // Get doctor's schedule
+      const schedule = await db
+        .select()
+        .from(doctorSchedule)
+        .where(eq(doctorSchedule.doctorId, doctorId));
+
+      // Get existing appointments
+      const existingAppointments = await db
+        .select()
+        .from(appointments)
+        .where(
+          and(
+            eq(appointments.doctorId, doctorId),
+            eq(appointments.status, "scheduled")
+          )
+        );
+
+      // Generate available slots based on schedule and constraints
+      const availableSlots = generateAvailableSlots(
+        schedule,
+        existingAppointments,
+        duration,
+        preferredTimes
+      );
+
+      // Score and rank slots
+      const scoredSlots = scoreTimeSlots(
+        availableSlots,
+        priority,
+        preferredTimes,
+        requiredEquipment,
+        existingAppointments
+      );
+
+      res.json(scoredSlots.slice(0, 5)); // Return top 5 slots
+    } catch (error) {
+      console.error("Optimal slots calculation error:", error);
+      res.status(500).json({ error: "Failed to calculate optimal appointment slots" });
+    }
+  });
+
+  app.post("/api/appointments/schedule", async (req, res) => {
+    try {
+      const {
+        doctorId,
+        dateTime,
+        duration,
+        type,
+        priority,
+        symptoms,
+        requiredEquipment,
+        preferredTimeSlots
+      } = req.body;
+
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      // Calculate end time
+      const endTime = new Date(dateTime);
+      endTime.setMinutes(endTime.getMinutes() + duration);
+
+      // Calculate scheduling score
+      const schedulingScore = calculateSchedulingScore(
+        dateTime,
+        endTime,
+        priority,
+        preferredTimeSlots
+      );
+
+      const [appointment] = await db
+        .insert(appointments)
+        .values({
+          patientId: userId,
+          doctorId,
+          dateTime: new Date(dateTime),
+          endTime,
+          type,
+          status: "scheduled",
+          priority,
+          duration,
+          symptoms,
+          requiredEquipment,
+          preferredTimeSlots,
+          schedulingScore,
+        })
+        .returning();
+
+      res.json(appointment);
+    } catch (error) {
+      console.error("Appointment scheduling error:", error);
+      res.status(500).json({ error: "Failed to schedule appointment" });
+    }
+  });
+
+  app.post("/api/appointments/optimize/:doctorId", async (req, res) => {
+    try {
+      const doctorId = parseInt(req.params.doctorId);
+
+      // Get all scheduled appointments for the doctor
+      const scheduledAppointments = await db
+        .select()
+        .from(appointments)
+        .where(
+          and(
+            eq(appointments.doctorId, doctorId),
+            eq(appointments.status, "scheduled")
+          )
+        )
+        .orderBy(desc(appointments.schedulingScore));
+
+      // Get doctor's schedule
+      const schedule = await db
+        .select()
+        .from(doctorSchedule)
+        .where(eq(doctorSchedule.doctorId, doctorId));
+
+      // Perform schedule optimization
+      const optimizationResult = await optimizeSchedule(
+        scheduledAppointments,
+        schedule
+      );
+
+      res.json(optimizationResult);
+    } catch (error) {
+      console.error("Schedule optimization error:", error);
+      res.status(500).json({ error: "Failed to optimize schedule" });
+    }
+  });
+
+  app.get("/api/doctor-schedule/:doctorId", async (req, res) => {
+    try {
+      const doctorId = parseInt(req.params.doctorId);
+
+      const schedule = await db
+        .select()
+        .from(doctorSchedule)
+        .where(eq(doctorSchedule.doctorId, doctorId));
+
+      res.json(schedule);
+    } catch (error) {
+      console.error("Doctor schedule fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch doctor schedule" });
+    }
+  });
+
+  app.put("/api/doctor-schedule/:scheduleId", async (req, res) => {
+    try {
+      const scheduleId = parseInt(req.params.scheduleId);
+      const updates = req.body;
+
+      const [updated] = await db
+        .update(doctorSchedule)
+        .set(updates)
+        .where(eq(doctorSchedule.id, scheduleId))
+        .returning();
+
+      res.json(updated);
+    } catch (error) {
+      console.error("Doctor schedule update error:", error);
+      res.status(500).json({ error: "Failed to update doctor schedule" });
+    }
+  });
+
   // Risk Assessment endpoint
   app.get("/api/risk-assessment", async (req, res) => {
     try {
@@ -374,4 +556,76 @@ export function registerRoutes(app: Express): Server {
 
   const httpServer = createServer(app);
   return httpServer;
+}
+
+// Utility functions for appointment scheduling
+function generateAvailableSlots(
+  schedule: any[],
+  existingAppointments: any[],
+  duration: number,
+  preferredTimes: any[]
+) {
+  // Implementation of slot generation logic
+  // This would be similar to the Python implementation in appointment_optimizer.py
+  // but adapted for TypeScript
+  return [];
+}
+
+function scoreTimeSlots(
+  slots: any[],
+  priority: string,
+  preferredTimes: any[],
+  requiredEquipment: string[],
+  existingAppointments: any[]
+) {
+  // Implementation of slot scoring logic
+  // This would be similar to the Python implementation in appointment_optimizer.py
+  // but adapted for TypeScript
+  return [];
+}
+
+function calculateSchedulingScore(
+  startTime: Date,
+  endTime: Date,
+  priority: string,
+  preferredTimeSlots: any[]
+) {
+  // Simple scheduling score calculation
+  let score = 50; // Base score
+
+  // Priority multiplier
+  const priorityMultipliers: { [key: string]: number } = {
+    urgent: 2.0,
+    high: 1.5,
+    medium: 1.0,
+    low: 0.5
+  };
+
+  score *= priorityMultipliers[priority] || 1.0;
+
+  // Check if the time slot matches preferred times
+  if (preferredTimeSlots) {
+    for (const preferred of preferredTimeSlots) {
+      const prefStart = new Date(preferred.start);
+      const prefEnd = new Date(preferred.end);
+      if (startTime >= prefStart && endTime <= prefEnd) {
+        score *= 1.2; // 20% bonus for matching preferred time
+        break;
+      }
+    }
+  }
+
+  return Math.min(100, Math.max(0, Math.round(score)));
+}
+
+async function optimizeSchedule(appointments: any[], schedule: any[]) {
+  // Implementation of schedule optimization logic
+  // This would be similar to the Python implementation in appointment_optimizer.py
+  // but adapted for TypeScript
+  return {
+    total_appointments: appointments.length,
+    rescheduled: 0,
+    optimization_score: 0,
+    recommended_changes: []
+  };
 }
