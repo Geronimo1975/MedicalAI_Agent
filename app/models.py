@@ -1,17 +1,18 @@
 from . import db, login_manager
 from flask_login import UserMixin
-from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime
 
 class User(UserMixin, db.Model):
+    __tablename__ = 'users'
+
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(64), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
-    password = db.Column(db.String(128), nullable=False)  # Changed from password_hash to match DB
+    password = db.Column(db.String(256), nullable=False)
     name = db.Column(db.String(64), nullable=False)
     role = db.Column(db.String(20), nullable=False)  # patient, doctor, admin
     specialty = db.Column(db.String(64))  # for doctors
-    preferred_language = db.Column(db.String(10), default='en')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def set_password(self, password):
@@ -19,6 +20,20 @@ class User(UserMixin, db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.password, password)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'username': self.username,
+            'email': self.email,
+            'name': self.name,
+            'role': self.role,
+            'specialty': self.specialty
+        }
+
+@login_manager.user_loader
+def load_user(id):
+    return User.query.get(int(id))
 
 class Appointment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -89,7 +104,3 @@ class ChatMessage(db.Model):
     content = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     language = db.Column(db.String(10), nullable=False, default='en')  # Add language field
-
-@login_manager.user_loader
-def load_user(id):
-    return User.query.get(int(id))

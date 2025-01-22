@@ -29,35 +29,21 @@ function PrivateRoute({ component: Component, ...rest }: any) {
 }
 
 function Router() {
-  const { user, isLoading } = useUser();
-  const [, setLocation] = useLocation();
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-border" />
-      </div>
-    );
-  }
-
-  // If user is logged in and tries to access auth page, redirect to dashboard
-  if (user && window.location.pathname === '/auth') {
-    setLocation('/dashboard');
-    return null;
-  }
+  const { user } = useUser();
 
   return (
     <Switch>
-      <Route path="/auth" component={AuthPage} />
+      <Route path="/auth">
+        {() => user ? <Dashboard /> : <AuthPage />}
+      </Route>
       <Route path="/dashboard">
         {() => <PrivateRoute component={Dashboard} />}
       </Route>
+      <Route path="/">
+        {() => <PrivateRoute component={Dashboard} />}
+      </Route>
       <Route>
-        {() => {
-          // Redirect to auth if not logged in, dashboard if logged in
-          setLocation(user ? '/dashboard' : '/auth');
-          return null;
-        }}
+        {() => <NotFound />}
       </Route>
     </Switch>
   );
