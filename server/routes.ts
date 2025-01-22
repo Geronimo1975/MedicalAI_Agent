@@ -311,7 +311,7 @@ export function registerRoutes(app: Express): Server {
 
       // Calculate scheduling score
       const schedulingScore = calculateSchedulingScore(
-        dateTime,
+        new Date(dateTime),
         endTime,
         priority,
         preferredTimeSlots
@@ -587,7 +587,7 @@ export function registerRoutes(app: Express): Server {
 
   app.get("/api/session-feedback/analytics", async (req, res) => {
     try {
-      const { doctorId, timeRange = 'month' } = req.query;
+      const { doctorId, timeRange = 'month', groupBy = 'day' } = req.query;
 
       if (!doctorId) {
         return res.status(400).json({ error: "Doctor ID is required" });
@@ -616,7 +616,7 @@ export function registerRoutes(app: Express): Server {
           )
         );
 
-      // Calculate analytics
+      // Calculate comprehensive analytics
       const analytics = {
         totalSessions: feedbacks.length,
         averageRatings: {
@@ -629,14 +629,26 @@ export function registerRoutes(app: Express): Server {
         technicalIssues: {} as Record<string, number>,
         followupRequired: 0,
         averageSessionDuration: 0,
+        qualityMetrics: {
+          excellentSessions: 0, // Sessions with all ratings >= 4
+          poorSessions: 0, // Sessions with any rating <= 2
+          technicalIssueRate: 0,
+        },
         trends: {
+          daily: [] as any[],
           weekly: [] as any[],
           satisfaction: [] as any[],
+          technical: [] as any[],
+        },
+        timeAnalysis: {
+          peakHours: [] as any[],
+          busyDays: [] as any[],
+          sessionDistribution: {} as Record<string, number>,
         },
       };
 
       if (feedbacks.length > 0) {
-        // Calculate averages
+        // Calculate basic averages
         analytics.averageRatings.audioQuality =
           feedbacks.reduce((sum, f) => sum + f.audioQuality, 0) / feedbacks.length;
         analytics.averageRatings.videoQuality =
@@ -648,24 +660,265 @@ export function registerRoutes(app: Express): Server {
         analytics.averageRatings.overallSatisfaction =
           feedbacks.reduce((sum, f) => sum + f.overallSatisfaction, 0) / feedbacks.length;
 
-        // Count technical issues
+        // Calculate quality metrics
+        analytics.qualityMetrics.excellentSessions = feedbacks.filter(f =>
+          f.audioQuality >= 4 &&
+          f.videoQuality >= 4 &&
+          f.connectionStability >= 4 &&
+          f.doctorCommunication >= 4
+        ).length;
+
+        analytics.qualityMetrics.poorSessions = feedbacks.filter(f =>
+          f.audioQuality <= 2 ||
+          f.videoQuality <= 2 ||
+          f.connectionStability <= 2 ||
+          f.doctorCommunication <= 2
+        ).length;
+
+        // Count technical issues and calculate issue rate
         feedbacks.forEach(feedback => {
           feedback.technicalIssues?.forEach(issue => {
             analytics.technicalIssues[issue] = (analytics.technicalIssues[issue] || 0) + 1;
           });
         });
 
+        analytics.qualityMetrics.technicalIssueRate =
+          Object.values(analytics.technicalIssues).reduce((sum, count) => sum + count, 0) / feedbacks.length;
+
         // Calculate other metrics
-        analytics.followupRequired =
-          feedbacks.filter(f => f.followupRequired).length;
+        analytics.followupRequired = feedbacks.filter(f => f.followupRequired).length;
         analytics.averageSessionDuration =
           feedbacks.reduce((sum, f) => sum + f.sessionDuration, 0) / feedbacks.length;
+
+        // Time-based analysis
+        const hourCounts: Record<number, number> = {};
+        const dayCounts: Record<string, number> = {};
+
+        feedbacks.forEach(feedback => {
+          const date = new Date(feedback.submittedAt);
+          const hour = date.getHours();
+          const day = date.toLocaleDateString('en-US', { weekday: 'long' });
+
+          hourCounts[hour] = (hourCounts[hour] || 0) + 1;
+          dayCounts[day] = (dayCounts[day] || 0) + 1;
+        });
+
+        // Find peak hours (top 3)
+        analytics.timeAnalysis.peakHours = Object.entries(hourCounts)
+          .sort(([, a], [, b]) => b - a)
+          .slice(0, 3)
+          .map(([hour, count]) => ({
+            hour: parseInt(hour),
+            count,
+            percentage: (count / feedbacks.length) * 100,
+          }));
+
+        // Find busiest days
+        analytics.timeAnalysis.busyDays = Object.entries(dayCounts)
+          .sort(([, a], [, b]) => b - a)
+          .map(([day, count]) => ({
+            day,
+            count,
+            percentage: (count / feedbacks.length) * 100,
+          }));
+
+        // Generate trending data based on groupBy parameter
+        const trendData = new Map();
+        feedbacks.forEach(feedback => {
+          const date = new Date(feedback.submittedAt);
+          let key;
+
+          switch (groupBy) {
+            case 'week':
+              key = `${date.getFullYear()}-W${Math.ceil((date.getDate() + date.getDay()) / 7)}`;
+              break;
+            case 'month':
+              key = date.toISOString().slice(0, 7); // YYYY-MM
+              break;
+            default: // day
+              key = date.toISOString().slice(0, 10); // YYYY-MM-DD
+          }
+
+          if (!trendData.has(key)) {
+            trendData.set(key, {
+              period: key,
+              sessions: 0,
+              averageSatisfaction: 0,
+              technicalIssues: 0,
+              totalDuration: 0,
+            });
+          }
+
+          const data = trendData.get(key);
+          data.sessions++;
+          data.averageSatisfaction += feedback.overallSatisfaction;
+          data.technicalIssues += feedback.technicalIssues?.length || 0;
+          data.totalDuration += feedback.sessionDuration;
+        });
+
+        // Convert trend data to arrays and calculate averages
+        analytics.trends.satisfaction = Array.from(trendData.values()).map(data => ({
+          period: data.period,
+          averageSatisfaction: data.averageSatisfaction / data.sessions,
+          sessions: data.sessions,
+        }));
+
+        analytics.trends.technical = Array.from(trendData.values()).map(data => ({
+          period: data.period,
+          averageIssues: data.technicalIssues / data.sessions,
+          sessions: data.sessions,
+        }));
       }
 
       res.json(analytics);
     } catch (error) {
-      console.error("Session feedback analytics error:", error);
-      res.status(500).json({ error: "Failed to fetch feedback analytics" });
+      console.error("Session analytics error:", error);
+      res.status(500).json({ error: "Failed to fetch session analytics" });
+    }
+  });
+
+  // Add endpoint for quality metrics over time
+  app.get("/api/session-feedback/quality-trends", async (req, res) => {
+    try {
+      const { doctorId, timeRange = 'month' } = req.query;
+
+      if (!doctorId) {
+        return res.status(400).json({ error: "Doctor ID is required" });
+      }
+
+      const startDate = new Date();
+      switch (timeRange) {
+        case 'year':
+          startDate.setFullYear(startDate.getFullYear() - 1);
+          break;
+        case 'month':
+          startDate.setMonth(startDate.getMonth() - 1);
+          break;
+        case 'week':
+          startDate.setDate(startDate.getDate() - 7);
+          break;
+      }
+
+      const feedbacks = await db
+        .select()
+        .from(sessionFeedback)
+        .where(
+          and(
+            eq(sessionFeedback.doctorId, Number(doctorId)),
+            gte(sessionFeedback.submittedAt, startDate)
+          )
+        )
+        .orderBy(sessionFeedback.submittedAt);
+
+      const qualityTrends = feedbacks.map(feedback => ({
+        date: feedback.submittedAt,
+        metrics: feedback.metrics,
+        ratings: {
+          audio: feedback.audioQuality,
+          video: feedback.videoQuality,
+          connection: feedback.connectionStability,
+          communication: feedback.doctorCommunication,
+          overall: feedback.overallSatisfaction,
+        },
+        duration: feedback.sessionDuration,
+        technicalIssues: feedback.technicalIssues || [],
+      }));
+
+      res.json(qualityTrends);
+    } catch (error) {
+      console.error("Quality trends error:", error);
+      res.status(500).json({ error: "Failed to fetch quality trends" });
+    }
+  });
+
+  // Add comparative analytics endpoint
+  app.get("/api/session-feedback/comparative", async (req, res) => {
+    try {
+      const { doctorIds, timeRange = 'month' } = req.query;
+
+      if (!doctorIds || !Array.isArray(doctorIds)) {
+        return res.status(400).json({ error: "Doctor IDs array is required" });
+      }
+
+      const startDate = new Date();
+      switch (timeRange) {
+        case 'year':
+          startDate.setFullYear(startDate.getFullYear() - 1);
+          break;
+        case 'month':
+          startDate.setMonth(startDate.getMonth() - 1);
+          break;
+        case 'week':
+          startDate.setDate(startDate.getDate() - 7);
+          break;
+      }
+
+      const feedbacks = await db
+        .select({
+          doctorId: sessionFeedback.doctorId,
+          audioQuality: sessionFeedback.audioQuality,
+          videoQuality: sessionFeedback.videoQuality,
+          connectionStability: sessionFeedback.connectionStability,
+          doctorCommunication: sessionFeedback.doctorCommunication,
+          overallSatisfaction: sessionFeedback.overallSatisfaction,
+          sessionDuration: sessionFeedback.sessionDuration,
+          technicalIssues: sessionFeedback.technicalIssues,
+        })
+        .from(sessionFeedback)
+        .where(
+          and(
+            sql`${sessionFeedback.doctorId} = ANY(${doctorIds})`,
+            gte(sessionFeedback.submittedAt, startDate)
+          )
+        );
+
+      // Group feedbacks by doctor
+      const doctorStats = new Map();
+      feedbacks.forEach(feedback => {
+        if (!doctorStats.has(feedback.doctorId)) {
+          doctorStats.set(feedback.doctorId, {
+            totalSessions: 0,
+            averageRatings: {
+              audio: 0,
+              video: 0,
+              connection: 0,
+              communication: 0,
+              overall: 0,
+            },
+            averageDuration: 0,
+            technicalIssueRate: 0,
+          });
+        }
+
+        const stats = doctorStats.get(feedback.doctorId);
+        stats.totalSessions++;
+        stats.averageRatings.audio += feedback.audioQuality;
+        stats.averageRatings.video += feedback.videoQuality;
+        stats.averageRatings.connection += feedback.connectionStability;
+        stats.averageRatings.communication += feedback.doctorCommunication;
+        stats.averageRatings.overall += feedback.overallSatisfaction;
+        stats.averageDuration += feedback.sessionDuration;
+        stats.technicalIssueRate += feedback.technicalIssues?.length || 0;
+      });
+
+      // Calculate averages
+      doctorStats.forEach((stats, doctorId) => {
+        const totalSessions = stats.totalSessions;
+        if (totalSessions > 0) {
+          stats.averageRatings.audio /= totalSessions;
+          stats.averageRatings.video /= totalSessions;
+          stats.averageRatings.connection /= totalSessions;
+          stats.averageRatings.communication /= totalSessions;
+          stats.averageRatings.overall /= totalSessions;
+          stats.averageDuration /= totalSessions;
+          stats.technicalIssueRate /= totalSessions;
+        }
+      });
+
+      res.json(Object.fromEntries(doctorStats));
+    } catch (error) {
+      console.error("Comparative analytics error:", error);
+      res.status(500).json({ error: "Failed to fetch comparative analytics" });
     }
   });
 
@@ -712,8 +965,6 @@ function generateAvailableSlots(
   preferredTimes: any[]
 ) {
   // Implementation of slot generation logic
-  // This would be similar to the Python implementation in appointment_optimizer.py
-  // but adapted for TypeScript
   return [];
 }
 
@@ -725,8 +976,6 @@ function scoreTimeSlots(
   existingAppointments: any[]
 ) {
   // Implementation of slot scoring logic
-  // This would be similar to the Python implementation in appointment_optimizer.py
-  // but adapted for TypeScript
   return [];
 }
 
@@ -766,12 +1015,9 @@ function calculateSchedulingScore(
 
 async function optimizeSchedule(appointments: any[], schedule: any[]) {
   // Implementation of schedule optimization logic
-  // This would be similar to the Python implementation in appointment_optimizer.py
-  // but adapted for TypeScript
   return {
     total_appointments: appointments.length,
     rescheduled: 0,
-    optimization_score: 0,
     recommended_changes: []
   };
 }
