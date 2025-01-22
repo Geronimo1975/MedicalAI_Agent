@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Calendar, Clock, Video } from "lucide-react";
 import VideoCall from "@/components/video-call";
 import AppointmentForm from "@/components/appointment-form";
+import DocumentManager from "@/components/document-manager";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
@@ -108,13 +109,11 @@ export default function PatientDashboard() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Medical Records</CardTitle>
-              <CardDescription>View your medical history</CardDescription>
+              <CardTitle>Medical Documents</CardTitle>
+              <CardDescription>Upload and manage your medical documents</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-4">
-                <p className="text-gray-500">Medical records will be displayed here</p>
-              </div>
+              <DocumentManager />
             </CardContent>
           </Card>
         </div>
