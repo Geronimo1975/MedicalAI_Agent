@@ -18,5 +18,15 @@
   "treatment": "treatment",
   "symptoms": "symptoms",
   "medical history": "medical history",
-  "allergies": "allergies"
+  "allergies": "allergies",
+  "vaccination": "vaccination",
+  "blood test": "blood test",
+  "x-ray": "x-ray",
+  "medication": "medication",
+  "chronic": "chronic",
+  "acute": "acute",
+  "referral": "referral",
+  "specialist": "specialist",
+  "follow-up": "follow-up",
+  "vital signs": "vital signs"
 }

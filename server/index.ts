@@ -1,6 +1,8 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { spawn } from "child_process";
+import path from "path";
 
 const app = express();
 app.use(express.json());
@@ -36,7 +38,33 @@ app.use((req, res, next) => {
   next();
 });
 
+// Start Flask server for translations
+const startFlaskServer = () => {
+  const flaskServer = spawn('python3', [path.join(process.cwd(), 'app', 'translation_server.py')], {
+    env: { ...process.env, FLASK_PORT: '5001' }
+  });
+
+  flaskServer.stdout.on('data', (data) => {
+    log(`[Flask] ${data}`);
+  });
+
+  flaskServer.stderr.on('data', (data) => {
+    console.error(`[Flask Error] ${data}`);
+  });
+
+  flaskServer.on('close', (code) => {
+    console.error(`Flask server exited with code ${code}`);
+    process.exit(1); // Exit if Flask server dies
+  });
+
+  // Give Flask server time to start
+  return new Promise((resolve) => setTimeout(resolve, 2000));
+};
+
 (async () => {
+  // Start Flask server first
+  await startFlaskServer();
+
   const server = registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -60,6 +88,6 @@ app.use((req, res, next) => {
   // this serves both the API and the client
   const PORT = 5000;
   server.listen(PORT, "0.0.0.0", () => {
-    log(`serving on port ${PORT}`);
+    log(`Express server serving on port ${PORT}`);
   });
 })();

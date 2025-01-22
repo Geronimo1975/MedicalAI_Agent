@@ -8,6 +8,103 @@ import { eq, and, desc, gte, sql, or } from "drizzle-orm";
 export function registerRoutes(app: Express): Server {
   setupAuth(app);
 
+  // Translation endpoints - proxied to Flask backend
+  app.post("/api/translate", async (req, res) => {
+    try {
+      const response = await fetch('http://127.0.0.1:5001/translate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(req.body),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Translation failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error("Translation error:", error);
+      res.status(500).json({ error: "Translation failed" });
+    }
+  });
+
+  app.post("/api/detect-language", async (req, res) => {
+    try {
+      const response = await fetch('http://127.0.0.1:5001/detect-language', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(req.body),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Language detection failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error("Language detection error:", error);
+      res.status(500).json({ error: "Language detection failed" });
+    }
+  });
+
+  app.get("/api/supported-languages", async (_req, res) => {
+    try {
+      const response = await fetch('http://127.0.0.1:5001/supported-languages');
+      if (!response.ok) {
+        throw new Error(`Failed to fetch supported languages: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error("Supported languages fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch supported languages" });
+    }
+  });
+
+  app.get("/api/medical-terms/:language", async (req, res) => {
+    try {
+      const response = await fetch(`http://127.0.0.1:5001/medical-terms/${req.params.language}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch medical terms: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error("Medical terms fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch medical terms" });
+    }
+  });
+
+  app.post("/api/medical-terms", async (req, res) => {
+    try {
+      const response = await fetch('http://127.0.0.1:5001/medical-terms', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(req.body),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to add medical term: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error("Medical term addition error:", error);
+      res.status(500).json({ error: "Failed to add medical term" });
+    }
+  });
+
   // Messages endpoints
   app.post("/api/messages", async (req, res) => {
     try {
