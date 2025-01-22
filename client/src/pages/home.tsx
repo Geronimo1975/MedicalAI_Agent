@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Link } from "wouter";
 
 const pricingPlans = [
   {
@@ -72,6 +73,9 @@ export default function Home() {
           <div className="flex items-center space-x-4">
             <Button variant="ghost">Features</Button>
             <Button variant="ghost">Pricing</Button>
+            <Link href="/symptoms">
+              <Button variant="ghost">Symptoms</Button>
+            </Link>
             <Button variant="ghost">About</Button>
             <Button variant="ghost">Contact</Button>
             <Button>Get Started</Button>
