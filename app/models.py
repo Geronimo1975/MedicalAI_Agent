@@ -20,6 +20,10 @@ class User(UserMixin, db.Model):
                                           foreign_keys='Prescription.doctor_id', lazy=True)
     prescriptions_as_patient = db.relationship('Prescription', backref='patient',
                                            foreign_keys='Prescription.patient_id', lazy=True)
+    documents_shared_by = db.relationship('MedicalDocument', backref='shared_by',
+                                      foreign_keys='MedicalDocument.shared_by_id', lazy=True)
+    documents_shared_with = db.relationship('MedicalDocument', backref='shared_with',
+                                        foreign_keys='MedicalDocument.shared_with_id', lazy=True)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -63,6 +67,18 @@ class Prescription(db.Model):
 
     patient = db.relationship('User', foreign_keys=[patient_id])
     doctor = db.relationship('User', foreign_keys=[doctor_id])
+
+class MedicalDocument(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(255), nullable=False)
+    file_path = db.Column(db.String(512), nullable=False)
+    file_type = db.Column(db.String(64), nullable=False)  # e.g., pdf, jpg, png
+    shared_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    shared_with_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    description = db.Column(db.Text)
+    category = db.Column(db.String(64))  # e.g., lab_result, scan, prescription
+    is_archived = db.Column(db.Boolean, default=False)
 
 @login_manager.user_loader
 def load_user(id):

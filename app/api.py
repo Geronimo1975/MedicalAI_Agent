@@ -1,9 +1,20 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file, current_app
 from flask_login import login_required, current_user
-from .models import User, Appointment, MedicalRecord, Prescription, db
+from .models import User, Appointment, MedicalRecord, Prescription, MedicalDocument, db
 from datetime import datetime
+from werkzeug.utils import secure_filename
+import os
+from pathlib import Path
 
 api_bp = Blueprint('api', __name__)
+
+# Create uploads directory if it doesn't exist
+UPLOAD_FOLDER = Path("uploads/medical_documents")
+UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
+ALLOWED_EXTENSIONS = {'pdf', 'png', 'jpg', 'jpeg', 'doc', 'docx'}
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # Appointments
 @api_bp.route('/appointments', methods=['GET'])
@@ -256,6 +267,126 @@ def update_prescription(id):
             'created_at': prescription.created_at.isoformat(),
             'patient_name': prescription.patient.name,
             'doctor_name': prescription.doctor.name
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 400
+
+
+# Medical Documents
+@api_bp.route('/documents', methods=['POST'])
+@login_required
+def upload_document():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+
+    if not allowed_file(file.filename):
+        return jsonify({'error': 'File type not allowed'}), 400
+
+    try:
+        data = request.form
+        filename = secure_filename(file.filename)
+        timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+        unique_filename = f"{timestamp}_{filename}"
+        file_path = UPLOAD_FOLDER / unique_filename
+
+        file.save(file_path)
+
+        document = MedicalDocument(
+            title=data.get('title', filename),
+            file_path=str(file_path),
+            file_type=filename.rsplit('.', 1)[1].lower(),
+            shared_by_id=current_user.id,
+            shared_with_id=data['shared_with_id'],
+            description=data.get('description'),
+            category=data.get('category')
+        )
+
+        db.session.add(document)
+        db.session.commit()
+
+        return jsonify({
+            'id': document.id,
+            'title': document.title,
+            'file_type': document.file_type,
+            'shared_by_id': document.shared_by_id,
+            'shared_with_id': document.shared_with_id,
+            'created_at': document.created_at.isoformat(),
+            'description': document.description,
+            'category': document.category
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 400
+
+@api_bp.route('/documents', methods=['GET'])
+@login_required
+def get_documents():
+    try:
+        # Get documents shared by or with the current user
+        documents = MedicalDocument.query.filter(
+            db.or_(
+                MedicalDocument.shared_by_id == current_user.id,
+                MedicalDocument.shared_with_id == current_user.id
+            )
+        ).all()
+
+        return jsonify([{
+            'id': doc.id,
+            'title': doc.title,
+            'file_type': doc.file_type,
+            'shared_by_id': doc.shared_by_id,
+            'shared_with_id': doc.shared_with_id,
+            'created_at': doc.created_at.isoformat(),
+            'description': doc.description,
+            'category': doc.category,
+            'is_archived': doc.is_archived,
+            'shared_by_name': doc.shared_by.name,
+            'shared_with_name': doc.shared_with.name
+        } for doc in documents])
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@api_bp.route('/documents/<int:id>/download', methods=['GET'])
+@login_required
+def download_document(id):
+    document = MedicalDocument.query.get_or_404(id)
+
+    # Check if user has access to the document
+    if current_user.id not in [document.shared_by_id, document.shared_with_id]:
+        return jsonify({'error': 'Unauthorized access'}), 403
+
+    try:
+        return send_file(
+            document.file_path,
+            as_attachment=True,
+            download_name=f"{document.title}.{document.file_type}"
+        )
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@api_bp.route('/documents/<int:id>/archive', methods=['PUT'])
+@login_required
+def archive_document(id):
+    document = MedicalDocument.query.get_or_404(id)
+
+    # Only the person who shared the document can archive it
+    if current_user.id != document.shared_by_id:
+        return jsonify({'error': 'Unauthorized action'}), 403
+
+    try:
+        document.is_archived = not document.is_archived
+        db.session.commit()
+
+        return jsonify({
+            'id': document.id,
+            'is_archived': document.is_archived
         })
     except Exception as e:
         db.session.rollback()
