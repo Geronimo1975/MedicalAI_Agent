@@ -24,6 +24,7 @@ class User(UserMixin, db.Model):
                                       foreign_keys='MedicalDocument.shared_by_id', lazy=True)
     documents_shared_with = db.relationship('MedicalDocument', backref='shared_with',
                                         foreign_keys='MedicalDocument.shared_with_id', lazy=True)
+    chat_sessions = db.relationship('ChatSession', backref='user', lazy=True)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -79,6 +80,22 @@ class MedicalDocument(db.Model):
     description = db.Column(db.Text)
     category = db.Column(db.String(64))  # e.g., lab_result, scan, prescription
     is_archived = db.Column(db.Boolean, default=False)
+
+class ChatSession(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    started_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    ended_at = db.Column(db.DateTime)
+    summary = db.Column(db.Text)
+    triage_level = db.Column(db.String(20))  # urgent, non-urgent, seek_immediate_care
+    messages = db.relationship('ChatMessage', backref='session', lazy=True, order_by='ChatMessage.timestamp')
+
+class ChatMessage(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey('chat_session.id'), nullable=False)
+    role = db.Column(db.String(20), nullable=False)  # user or assistant
+    content = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
 @login_manager.user_loader
 def load_user(id):

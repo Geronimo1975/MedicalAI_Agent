@@ -1,10 +1,11 @@
 from flask import Blueprint, request, jsonify, send_file, current_app
 from flask_login import login_required, current_user
-from .models import User, Appointment, MedicalRecord, Prescription, MedicalDocument, db
+from .models import User, Appointment, MedicalRecord, Prescription, MedicalDocument, ChatSession, ChatMessage, db
 from datetime import datetime
 from werkzeug.utils import secure_filename
 import os
 from pathlib import Path
+from .chatbot import ChatbotService
 
 api_bp = Blueprint('api', __name__)
 
@@ -390,4 +391,102 @@ def archive_document(id):
         })
     except Exception as e:
         db.session.rollback()
+        return jsonify({'error': str(e)}), 400
+
+# Chatbot endpoints
+@api_bp.route('/chat/session', methods=['POST'])
+@login_required
+def create_chat_session():
+    try:
+        session = ChatbotService.create_session(current_user.id)
+        return jsonify({
+            'session_id': session.id,
+            'started_at': session.started_at.isoformat(),
+            'message': "Hello! I'm here to help assess your symptoms. Please describe what's bothering you."
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@api_bp.route('/chat/sessions', methods=['GET'])
+@login_required
+def get_chat_sessions():
+    try:
+        sessions = ChatSession.query.filter_by(user_id=current_user.id).order_by(ChatSession.started_at.desc()).all()
+        return jsonify([{
+            'id': session.id,
+            'started_at': session.started_at.isoformat(),
+            'ended_at': session.ended_at.isoformat() if session.ended_at else None,
+            'summary': session.summary,
+            'triage_level': session.triage_level
+        } for session in sessions])
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@api_bp.route('/chat/session/<int:session_id>', methods=['GET'])
+@login_required
+def get_chat_history(session_id):
+    try:
+        session = ChatSession.query.get_or_404(session_id)
+        if session.user_id != current_user.id:
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        messages = ChatMessage.query.filter_by(session_id=session_id).order_by(ChatMessage.timestamp).all()
+        return jsonify({
+            'session_id': session_id,
+            'started_at': session.started_at.isoformat(),
+            'ended_at': session.ended_at.isoformat() if session.ended_at else None,
+            'triage_level': session.triage_level,
+            'summary': session.summary,
+            'messages': [{
+                'role': msg.role,
+                'content': msg.content,
+                'timestamp': msg.timestamp.isoformat()
+            } for msg in messages]
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@api_bp.route('/chat/session/<int:session_id>/message', methods=['POST'])
+@login_required
+def send_message(session_id):
+    try:
+        session = ChatSession.query.get_or_404(session_id)
+        if session.user_id != current_user.id:
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        if session.ended_at:
+            return jsonify({'error': 'This chat session has ended'}), 400
+
+        data = request.get_json()
+        if not data or 'message' not in data:
+            return jsonify({'error': 'No message provided'}), 400
+
+        response = ChatbotService.get_response(session_id, data['message'])
+
+        return jsonify({
+            'response': response,
+            'triage_level': session.triage_level
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@api_bp.route('/chat/session/<int:session_id>/end', methods=['POST'])
+@login_required
+def end_chat_session(session_id):
+    try:
+        session = ChatSession.query.get_or_404(session_id)
+        if session.user_id != current_user.id:
+            return jsonify({'error': 'Unauthorized access'}), 403
+
+        if session.ended_at:
+            return jsonify({'error': 'Session already ended'}), 400
+
+        summary = ChatbotService.end_session(session_id)
+
+        return jsonify({
+            'summary': summary,
+            'ended_at': session.ended_at.isoformat(),
+            'triage_level': session.triage_level
+        })
+    except Exception as e:
         return jsonify({'error': str(e)}), 400
