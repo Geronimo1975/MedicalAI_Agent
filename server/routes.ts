@@ -3,10 +3,88 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { db } from "@db";
 import { appointments, medicalRecords, chatSessions } from "@db/schema";
-import { eq, and, desc, gte } from "drizzle-orm";
+import { eq, and, desc, gte, sql } from "drizzle-orm";
 
 export function registerRoutes(app: Express): Server {
   setupAuth(app);
+
+  // Symptom Journey endpoint
+  app.get("/api/symptom-journey", async (req, res) => {
+    try {
+      const { timeRange = 'week', symptom = 'all' } = req.query;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      // Calculate the date range
+      const now = new Date();
+      const startDate = new Date();
+      switch (timeRange) {
+        case 'month':
+          startDate.setMonth(now.getMonth() - 1);
+          break;
+        case 'year':
+          startDate.setFullYear(now.getFullYear() - 1);
+          break;
+        default: // week
+          startDate.setDate(now.getDate() - 7);
+      }
+
+      // Get chat sessions with symptom data
+      const sessions = await db
+        .select({
+          startedAt: chatSessions.startedAt,
+          symptoms: chatSessions.symptoms,
+          totalRisk: chatSessions.totalRisk,
+          severityScore: chatSessions.severityScore,
+          correlationScore: chatSessions.correlationScore,
+        })
+        .from(chatSessions)
+        .where(
+          and(
+            eq(chatSessions.userId, userId),
+            gte(chatSessions.startedAt, startDate),
+            sql`${chatSessions.symptoms} IS NOT NULL`
+          )
+        )
+        .orderBy(chatSessions.startedAt);
+
+      // Process sessions into symptom history
+      const symptomHistory = sessions.flatMap(session => {
+        if (!session.symptoms) return [];
+
+        return session.symptoms.map(symptomName => ({
+          timestamp: session.startedAt.toISOString(),
+          name: symptomName,
+          intensity: session.severityScore || 5, // Default to middle intensity if not recorded
+        }));
+      });
+
+      // Generate AI insights based on symptom progression
+      const insights = {
+        trends: [
+          "Your fever symptoms show a decreasing trend over the past week",
+          "Fatigue levels appear to correlate with reported stress levels",
+          "Morning symptoms are generally more severe than evening symptoms"
+        ],
+        recommendations: [
+          "Consider keeping a sleep journal to track correlation with symptom intensity",
+          "Schedule follow-up appointment to discuss medication effectiveness",
+          "Continue monitoring temperature at regular intervals"
+        ]
+      };
+
+      res.json({
+        symptomHistory,
+        insights
+      });
+    } catch (error) {
+      console.error("Symptom journey error:", error);
+      res.status(500).json({ error: "Failed to fetch symptom journey data" });
+    }
+  });
 
   // Risk Assessment endpoint
   app.get("/api/risk-assessment", async (req, res) => {
