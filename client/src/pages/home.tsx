@@ -10,6 +10,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Link } from "wouter";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { AccessibilityMenu } from "@/components/ui/accessibility-menu";
 
 const pricingPlans = [
   {
@@ -62,6 +64,11 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/10">
+      {/* Skip to main content link for keyboard users */}
+      <a href="#main-content" className="skip-to-content">
+        Skip to main content
+      </a>
+
       {/* Navigation */}
       <nav className="fixed top-0 w-full bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50 border-b">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
@@ -86,13 +93,15 @@ export default function Home() {
             <Link href="/contact">
               <Button variant="ghost">Contact</Button>
             </Link>
+            <ThemeToggle />
+            <AccessibilityMenu />
             <Button>Get Started</Button>
           </div>
         </div>
       </nav>
 
       {/* Hero Section */}
-      <section className="pt-32 pb-16 px-4">
+      <section id="main-content" className="pt-32 pb-16 px-4" role="main" aria-label="Welcome to HealthAI">
         <div className="container mx-auto text-center">
           <h1 className="text-5xl font-bold mb-6 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
             Your Personal AI Healthcare Assistant
