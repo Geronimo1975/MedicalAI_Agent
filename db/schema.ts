@@ -9,6 +9,9 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   email: text("email").notNull(),
   specialty: text("specialty"),
+  subscription_tier: text("subscription_tier", { 
+    enum: ["basic", "professional", "premium"] 
+  }),
 });
 
 export const messages = pgTable("messages", {

@@ -991,7 +991,7 @@ export function registerRoutes(app: Express): Server {
         stats.totalSessions++;
         stats.averageRatings.audio += feedback.audioQuality;
         stats.averageRatings.video += feedback.videoQuality;
-        stats.averageRatings.connection += feedback.connectionStability;
+        stats.connection += feedback.connectionStability;
         stats.averageRatings.communication += feedback.doctorCommunication;
         stats.averageRatings.overall += feedback.overallSatisfaction;
         stats.averageDuration += feedback.sessionDuration;
