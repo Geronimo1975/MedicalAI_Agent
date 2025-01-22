@@ -8,6 +8,7 @@ from .openai_model import OpenAIChatModel
 from .document_processor import DocumentProcessor
 from .risk_assessment import RiskAssessment
 from ..models import ChatSession, ChatMessage, db
+from ..translations import TranslationService
 
 SYSTEM_PROMPT = """You are an advanced medical pre-screening assistant. Your role is to:
 
@@ -66,6 +67,7 @@ class ChatbotService:
     _model_type = os.environ.get("CHATBOT_MODEL", "openai")
     _doc_processor = DocumentProcessor()
     _risk_assessor = RiskAssessment()
+    _translator = TranslationService()
 
     @classmethod
     def get_model(cls) -> BaseChatModel:
@@ -85,11 +87,11 @@ class ChatbotService:
         db.session.add(session)
         db.session.commit()
 
-        # Add initial message from assistant
         initial_message = ChatMessage(
             session_id=session.id,
             role="assistant",
-            content="Hello! I'm here to help assess your symptoms. What symptoms are you experiencing today, and when did they start?"
+            content="Hello! I'm here to help assess your symptoms. What symptoms are you experiencing today, and when did they start?",
+            language='en'
         )
         db.session.add(initial_message)
         db.session.commit()
@@ -102,9 +104,9 @@ class ChatbotService:
         return ChatMessage.query.filter_by(session_id=session_id).order_by(ChatMessage.timestamp).all()
 
     @staticmethod
-    def add_message(session_id: int, role: str, content: str) -> ChatMessage:
+    def add_message(session_id: int, role: str, content: str, language: str = 'en') -> ChatMessage:
         """Add a message to the chat history."""
-        message = ChatMessage(session_id=session_id, role=role, content=content)
+        message = ChatMessage(session_id=session_id, role=role, content=content, language=language)
         db.session.add(message)
         db.session.commit()
         return message
@@ -121,34 +123,25 @@ class ChatbotService:
         return messages
 
     @classmethod
-    def get_response(cls, session_id: int, user_message: str) -> str:
-        """Get a response from the chatbot with integrated risk assessment."""
-        # Add user message to history
-        cls.add_message(session_id, "user", user_message)
+    def get_response(cls, session_id: int, user_message: str, target_lang: str = 'en') -> str:
+        """Get a response from the chatbot with integrated risk assessment and translation."""
+        source_lang = cls._translator.detect_language(user_message)
+        english_message = user_message if source_lang == 'en' else cls._translator.translate_text(user_message, 'en', source_lang)
 
-        # Extract symptoms from user message
-        symptoms = cls.extract_symptoms(user_message)
+        cls.add_message(session_id, "user", user_message, language=source_lang)
 
-        # Get conversation history and relevant context
-        context = cls._doc_processor.get_relevant_context(user_message)
+        symptoms = cls.extract_symptoms(english_message)
+
+        context = cls._doc_processor.get_relevant_context(english_message)
         messages = cls.get_conversation_messages(session_id)
 
-        # If symptoms were detected, perform risk assessment
         risk_assessment_info = ""
         if symptoms:
-            # Extract patient factors from conversation history
             patient_factors = cls._extract_patient_factors(messages)
-
-            # Calculate risk score
             risk_scores = cls._risk_assessor.calculate_risk_score(symptoms, patient_factors)
-
-            # Get suggested symptoms to check
             suggested_symptoms = cls._risk_assessor.suggest_additional_symptoms(symptoms)
-
-            # Get recommendations
             recommendations = cls._risk_assessor.get_severity_recommendations(risk_scores['total_risk'])
 
-            # Format risk assessment information
             risk_assessment_info = f"\n\nRisk Assessment:\n" \
                                  f"- Overall Risk Score: {risk_scores['total_risk']}/10\n" \
                                  f"- Severity Score: {risk_scores['severity_score']}\n" \
@@ -157,24 +150,24 @@ class ChatbotService:
 
             if suggested_symptoms:
                 risk_assessment_info += f"\nSuggested symptoms to check:\n" \
-                                      f"- {', '.join(suggested_symptoms)}"
+                                     f"- {', '.join(suggested_symptoms)}"
 
-        # Add context and risk assessment to the last user message
         messages[-1]["content"] = (
             f"Context from medical documentation:\n{context}\n\n"
-            f"User message: {user_message}\n"
+            f"User message: {english_message}\n"
             f"{risk_assessment_info}"
         )
 
         try:
-            # Get response from the model
             model = cls.get_model()
-            assistant_message = model.generate_response(messages)
+            english_response = model.generate_response(messages)
 
-            # Add assistant response to history
-            cls.add_message(session_id, "assistant", assistant_message)
+            final_response = english_response if target_lang == 'en' else cls._translator.translate_text(
+                english_response, target_lang, 'en'
+            )
 
-            # Update triage level based on risk assessment
+            cls.add_message(session_id, "assistant", final_response, language=target_lang)
+
             if symptoms:
                 risk_score = risk_scores['total_risk']
                 triage_level = (
@@ -187,21 +180,24 @@ class ChatbotService:
                 session.triage_level = triage_level
                 db.session.commit()
 
-            return assistant_message
+            return final_response
 
         except Exception as e:
             error_message = "I apologize, but I'm having trouble processing your request. " \
-                          "If you're experiencing severe or life-threatening symptoms, " \
-                          "please seek immediate medical attention by calling emergency " \
-                          "services or going to the nearest emergency room."
-            cls.add_message(session_id, "assistant", error_message)
-            return error_message
+                            "If you're experiencing severe or life-threatening symptoms, " \
+                            "please seek immediate medical attention by calling emergency " \
+                            "services or going to the nearest emergency room."
+
+            translated_error = error_message if target_lang == 'en' else cls._translator.translate_text(
+                error_message, target_lang, 'en'
+            )
+
+            cls.add_message(session_id, "assistant", translated_error, language=target_lang)
+            return translated_error
 
     @staticmethod
     def extract_symptoms(message_content: str) -> List[str]:
         """Extract symptom IDs from message content using keyword matching."""
-        # This is a simple implementation - in production, you'd want to use
-        # more sophisticated NLP techniques
         symptoms = []
         symptom_keywords = {
             'fever': ['fever', 'high temperature', 'feeling hot'],
@@ -222,14 +218,10 @@ class ChatbotService:
     @staticmethod
     def _extract_patient_factors(messages: List[Dict[str, str]]) -> Dict[str, float]:
         """Extract patient risk factors from conversation history."""
-        # This is a simple implementation - in production, you'd want to use
-        # more sophisticated NLP techniques
         factors = {}
 
-        # Combine all messages into one text for analysis
         text = " ".join(msg["content"].lower() for msg in messages)
 
-        # Check for various risk factors
         if any(age in text for age in ['elderly', 'senior', 'over 65', '65+']):
             factors['age_65_plus'] = 1.0
 
@@ -258,7 +250,6 @@ class ChatbotService:
             messages = cls.get_conversation_messages(session_id)
 
             try:
-                # Generate session summary using the current model
                 model = cls.get_model()
                 summary = model.generate_summary(messages)
 

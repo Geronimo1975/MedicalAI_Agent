@@ -1,0 +1,22 @@
+{
+  "fever": "fiebre",
+  "headache": "dolor de cabeza",
+  "cough": "tos",
+  "shortness of breath": "dificultad para respirar",
+  "chest pain": "dolor en el pecho",
+  "fatigue": "fatiga",
+  "nausea": "náusea",
+  "dizziness": "mareo",
+  "high blood pressure": "presión arterial alta",
+  "diabetes": "diabetes",
+  "asthma": "asma",
+  "heart disease": "enfermedad cardíaca",
+  "infection": "infección",
+  "inflammation": "inflamación",
+  "prescription": "receta médica",
+  "diagnosis": "diagnóstico",
+  "treatment": "tratamiento",
+  "symptoms": "síntomas",
+  "medical history": "historial médico",
+  "allergies": "alergias"
+}

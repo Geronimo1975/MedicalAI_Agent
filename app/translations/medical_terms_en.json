@@ -1,0 +1,22 @@
+{
+  "fever": "fever",
+  "headache": "headache",
+  "cough": "cough",
+  "shortness of breath": "shortness of breath",
+  "chest pain": "chest pain",
+  "fatigue": "fatigue",
+  "nausea": "nausea",
+  "dizziness": "dizziness",
+  "high blood pressure": "high blood pressure",
+  "diabetes": "diabetes",
+  "asthma": "asthma",
+  "heart disease": "heart disease",
+  "infection": "infection",
+  "inflammation": "inflammation",
+  "prescription": "prescription",
+  "diagnosis": "diagnosis",
+  "treatment": "treatment",
+  "symptoms": "symptoms",
+  "medical history": "medical history",
+  "allergies": "allergies"
+}
