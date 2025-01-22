@@ -12,6 +12,8 @@ import {
 import { Link } from "wouter";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { AccessibilityMenu } from "@/components/ui/accessibility-menu";
+import { ChatWidget } from "@/components/ui/chat-widget";
+import { useUser } from "@/hooks/use-user";
 
 const pricingPlans = [
   {
@@ -61,15 +63,16 @@ const pricingPlans = [
 export default function Home() {
   const [cookieConsent, setCookieConsent] = useState(false);
   const [gdprDialog, setGdprDialog] = useState(true);
+  const { user } = useUser();
+
+  const subscriptionTier = user?.subscription_tier || null;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/10">
-      {/* Skip to main content link for keyboard users */}
       <a href="#main-content" className="skip-to-content">
         Skip to main content
       </a>
 
-      {/* Navigation */}
       <nav className="fixed top-0 w-full bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50 border-b">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-4">
@@ -100,7 +103,6 @@ export default function Home() {
         </div>
       </nav>
 
-      {/* Hero Section */}
       <section id="main-content" className="pt-32 pb-16 px-4" role="main" aria-label="Welcome to HealthAI">
         <div className="container mx-auto text-center">
           <h1 className="text-5xl font-bold mb-6 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
@@ -117,7 +119,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Pricing Section */}
       <section className="py-16 px-4" id="pricing">
         <div className="container mx-auto">
           <h2 className="text-3xl font-bold text-center mb-12">Choose Your Care Level</h2>
@@ -158,7 +159,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Enhanced Cookie Consent */}
       {!cookieConsent && (
         <div className="fixed bottom-6 w-full z-50 px-4">
           <div className="container mx-auto">
@@ -198,7 +198,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* GDPR Dialog */}
       <Dialog open={gdprDialog} onOpenChange={setGdprDialog}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
@@ -235,6 +234,11 @@ export default function Home() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ChatWidget 
+        subscriptionTier={subscriptionTier} 
+        isAuthenticated={!!user} 
+      />
     </div>
   );
 }
