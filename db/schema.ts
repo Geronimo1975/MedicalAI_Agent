@@ -31,6 +31,21 @@ export const medicalRecords = pgTable("medical_records", {
   notes: text("notes"),
 });
 
+export const chatSessions = pgTable("chat_sessions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  endedAt: timestamp("ended_at"),
+  summary: text("summary"),
+  triageLevel: text("triage_level", { enum: ["urgent", "non-urgent", "seek_immediate_care"] }),
+  totalRisk: integer("total_risk"),
+  severityScore: integer("severity_score"),
+  correlationScore: integer("correlation_score"),
+  riskMultiplier: integer("risk_multiplier"),
+  symptoms: text("symptoms").array(),
+  recommendations: text("recommendations"),
+});
+
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
 export type InsertUser = typeof users.$inferInsert;
@@ -45,3 +60,8 @@ export const insertMedicalRecordSchema = createInsertSchema(medicalRecords);
 export const selectMedicalRecordSchema = createSelectSchema(medicalRecords);
 export type InsertMedicalRecord = typeof medicalRecords.$inferInsert;
 export type SelectMedicalRecord = typeof medicalRecords.$inferSelect;
+
+export const insertChatSessionSchema = createInsertSchema(chatSessions);
+export const selectChatSessionSchema = createSelectSchema(chatSessions);
+export type InsertChatSession = typeof chatSessions.$inferInsert;
+export type SelectChatSession = typeof chatSessions.$inferSelect;

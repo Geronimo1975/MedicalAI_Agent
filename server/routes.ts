@@ -2,25 +2,98 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { db } from "@db";
-import { appointments, medicalRecords } from "@db/schema";
-import { eq, and } from "drizzle-orm";
+import { appointments, medicalRecords, chatSessions } from "@db/schema";
+import { eq, and, desc, gte } from "drizzle-orm";
 
 export function registerRoutes(app: Express): Server {
   setupAuth(app);
 
-  // Appointments
+  // Risk Assessment endpoint
+  app.get("/api/risk-assessment", async (req, res) => {
+    try {
+      const { timeRange = 'week' } = req.query;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      // Calculate the date range
+      const now = new Date();
+      const startDate = new Date();
+      switch (timeRange) {
+        case 'month':
+          startDate.setMonth(now.getMonth() - 1);
+          break;
+        case 'year':
+          startDate.setFullYear(now.getFullYear() - 1);
+          break;
+        default: // week
+          startDate.setDate(now.getDate() - 7);
+      }
+
+      // Get recent chat sessions for risk analysis
+      const sessions = await db
+        .select()
+        .from(chatSessions)
+        .where(
+          and(
+            eq(chatSessions.userId, userId),
+            gte(chatSessions.startedAt, startDate)
+          )
+        )
+        .orderBy(desc(chatSessions.startedAt));
+
+      // Process sessions to extract risk data
+      // This will be enhanced with actual risk assessment data from our system
+      const riskData = {
+        total_risk: 7.2,
+        severity_score: 6.8,
+        correlation_score: 7.5,
+        risk_multiplier: 1.2,
+        symptoms: [
+          {
+            symptom: "Fever",
+            risk: 0.7,
+            severity: 0.6,
+            correlation: 0.8
+          },
+          {
+            symptom: "Cough",
+            risk: 0.5,
+            severity: 0.4,
+            correlation: 0.6
+          },
+          {
+            symptom: "Fatigue",
+            risk: 0.6,
+            severity: 0.5,
+            correlation: 0.7
+          }
+        ],
+        recommendations: "Based on your symptoms and risk factors, please schedule a follow-up appointment. Monitor your temperature and stay hydrated."
+      };
+
+      res.json(riskData);
+    } catch (error) {
+      console.error("Risk assessment error:", error);
+      res.status(500).json({ error: "Failed to fetch risk assessment data" });
+    }
+  });
+
+  // Existing Appointments endpoints
   app.get("/api/appointments", async (req, res) => {
     const { userId, role } = req.query;
-    
+
     try {
       let query = db.select().from(appointments);
-      
+
       if (role === "patient") {
-        query = query.where(eq(appointments.patientId, Number(userId)));
+        query = db.select().from(appointments).where(eq(appointments.patientId, Number(userId)));
       } else if (role === "doctor") {
-        query = query.where(eq(appointments.doctorId, Number(userId)));
+        query = db.select().from(appointments).where(eq(appointments.doctorId, Number(userId)));
       }
-      
+
       const results = await query;
       res.json(results);
     } catch (error) {
