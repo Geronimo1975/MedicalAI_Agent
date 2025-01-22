@@ -7,6 +7,7 @@ type User = {
   name: string;
   role: string;
   specialty?: string | null;
+  subscription_tier?: string | null;
 }
 
 async function handleAuthRequest(

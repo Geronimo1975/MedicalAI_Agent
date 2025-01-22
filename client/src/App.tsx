@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth-page";
 import Dashboard from "@/pages/dashboard";
+import Home from "@/pages/home";
 import { useUser } from "@/hooks/use-user";
 import { Loader2 } from "lucide-react";
 
@@ -40,7 +41,7 @@ function Router() {
         {() => <PrivateRoute component={Dashboard} />}
       </Route>
       <Route path="/">
-        {() => <PrivateRoute component={Dashboard} />}
+        {() => <Home />}
       </Route>
       <Route>
         {() => <NotFound />}
