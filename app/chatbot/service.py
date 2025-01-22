@@ -1,6 +1,6 @@
 import os
-from datetime import datetime
-from typing import List, Dict
+from datetime import datetime, timedelta
+from typing import List, Dict, Optional, Tuple
 from .base import BaseChatModel
 from .llama_model import LlamaChatModel
 from .huggingface_model import HuggingFaceChatModel
@@ -124,16 +124,34 @@ class ChatbotService:
 
     @classmethod
     def get_response(cls, session_id: int, user_message: str, target_lang: str = 'en') -> str:
-        """Get a response from the chatbot with integrated risk assessment and translation."""
+        """Get a response from the chatbot with integrated risk assessment and pattern recognition."""
         source_lang = cls._translator.detect_language(user_message)
         english_message = user_message if source_lang == 'en' else cls._translator.translate_text(user_message, 'en', source_lang)
 
         cls.add_message(session_id, "user", user_message, language=source_lang)
 
+        # Extract symptoms and get chat history
         symptoms = cls.extract_symptoms(english_message)
+        messages = cls.get_conversation_messages(session_id)
+
+        # Get previous symptom history
+        previous_sessions = ChatSession.query.filter_by(user_id=session_id).order_by(ChatSession.started_at.desc()).limit(10).all()
+        symptom_history = []
+
+        for session in previous_sessions:
+            if session.symptoms:
+                for symptom in session.symptoms:
+                    symptom_history.append({
+                        'timestamp': session.started_at.isoformat(),
+                        'symptom': symptom,
+                        'severity': session.severity_score or 5
+                    })
+
+        # Analyze patterns
+        patterns = cls._risk_assessor.analyze_temporal_patterns(symptom_history)
+        insights = cls._risk_assessor.generate_insights(patterns)
 
         context = cls._doc_processor.get_relevant_context(english_message)
-        messages = cls.get_conversation_messages(session_id)
 
         risk_assessment_info = ""
         if symptoms:
@@ -142,16 +160,25 @@ class ChatbotService:
             suggested_symptoms = cls._risk_assessor.suggest_additional_symptoms(symptoms)
             recommendations = cls._risk_assessor.get_severity_recommendations(risk_scores['total_risk'])
 
-            risk_assessment_info = f"\n\nRisk Assessment:\n" \
-                                 f"- Overall Risk Score: {risk_scores['total_risk']}/10\n" \
-                                 f"- Severity Score: {risk_scores['severity_score']}\n" \
-                                 f"- Symptom Correlation: {risk_scores['correlation_score']}\n" \
-                                 f"\nRecommendations:\n{recommendations}\n"
+            # Combine risk assessment with pattern insights
+            risk_assessment_info = (
+                f"\n\nRisk Assessment:\n"
+                f"- Overall Risk Score: {risk_scores['total_risk']}/10\n"
+                f"- Severity Score: {risk_scores['severity_score']}\n"
+                f"- Symptom Correlation: {risk_scores['correlation_score']}\n"
+                f"\nPattern Analysis:\n"
+                + "\n".join(f"- {trend}" for trend in insights['trends'])
+                + "\n\nRecommendations:\n"
+                + recommendations
+                + "\n\nAdditional Insights:\n"
+                + "\n".join(f"- {rec}" for rec in insights['recommendations'])
+            )
 
             if suggested_symptoms:
-                risk_assessment_info += f"\nSuggested symptoms to check:\n" \
-                                     f"- {', '.join(suggested_symptoms)}"
+                risk_assessment_info += f"\n\nSuggested symptoms to monitor:\n" \
+                                      f"- {', '.join(suggested_symptoms)}"
 
+        # Update message content with context and analysis
         messages[-1]["content"] = (
             f"Context from medical documentation:\n{context}\n\n"
             f"User message: {english_message}\n"
@@ -166,27 +193,24 @@ class ChatbotService:
                 english_response, target_lang, 'en'
             )
 
-            cls.add_message(session_id, "assistant", final_response, language=target_lang)
-
-            if symptoms:
-                risk_score = risk_scores['total_risk']
-                triage_level = (
-                    "urgent" if risk_score >= 8.0
-                    else "seek_immediate_care" if risk_score >= 6.0
-                    else "non-urgent"
-                )
-
-                session = ChatSession.query.get(session_id)
-                session.triage_level = triage_level
+            # Store the analyzed patterns and insights
+            current_session = ChatSession.query.get(session_id)
+            if current_session and symptoms:
+                current_session.symptoms = symptoms
+                current_session.risk_score = risk_scores['total_risk']
                 db.session.commit()
+
+            cls.add_message(session_id, "assistant", final_response, language=target_lang)
 
             return final_response
 
         except Exception as e:
-            error_message = "I apologize, but I'm having trouble processing your request. " \
-                            "If you're experiencing severe or life-threatening symptoms, " \
-                            "please seek immediate medical attention by calling emergency " \
-                            "services or going to the nearest emergency room."
+            error_message = (
+                "I apologize, but I'm having trouble processing your request. "
+                "If you're experiencing severe or life-threatening symptoms, "
+                "please seek immediate medical attention by calling emergency "
+                "services or going to the nearest emergency room."
+            )
 
             translated_error = error_message if target_lang == 'en' else cls._translator.translate_text(
                 error_message, target_lang, 'en'
