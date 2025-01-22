@@ -1,5 +1,8 @@
 {pkgs}: {
   deps = [
+    pkgs.xsimd
+    pkgs.libxcrypt
+    pkgs.glibcLocales
     pkgs.bash
     pkgs.xcbuild
     pkgs.swig

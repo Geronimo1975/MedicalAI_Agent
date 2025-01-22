@@ -104,12 +104,12 @@ class RiskAssessment:
                 if i != j:
                     # Calculate correlation based on shared conditions
                     shared_conditions = len(set(symptom1.related_conditions) &
-                                             set(symptom2.related_conditions))
+                                          set(symptom2.related_conditions))
                     category_match = float(symptom1.category == symptom2.category)
 
                     # Combine factors for correlation score
                     matrix[i, j] = (0.5 * shared_conditions + 0.3 * category_match) / \
-                                    (1 + 0.5 * abs(symptom1.severity.value - symptom2.severity.value))
+                                 (1 + 0.5 * abs(symptom1.severity.value - symptom2.severity.value))
 
         self.symptom_vectors = csr_matrix(matrix)
 
