@@ -20,8 +20,10 @@ def create_app():
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-    # Initialize CORS
-    CORS(app, supports_credentials=True)
+    # Configure CORS to allow credentials
+    CORS(app, supports_credentials=True, resources={
+        "/api/*": {"origins": ["http://localhost:5000", "https://localhost:5000"]}
+    })
 
     # Initialize extensions
     db.init_app(app)
@@ -29,14 +31,16 @@ def create_app():
     migrate.init_app(app, db)
     babel.init_app(app)
 
-    # Register blueprints
-    from app.auth import auth_bp
-    from app.api import api_bp
+    # Import and register blueprints
+    from app.auth import bp as auth_bp
+    from app.api import bp as api_bp
+    from app.chat import bp as chat_bp
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(api_bp, url_prefix='/api')
+    app.register_blueprint(chat_bp, url_prefix='/api/chat')
 
-    # Ensure the migrations directory exists and initialize if needed
+    # Ensure the instance and migrations directories exist
     with app.app_context():
         if not os.path.exists('migrations'):
             from flask_migrate import init as init_migrations
