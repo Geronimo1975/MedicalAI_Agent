@@ -137,24 +137,42 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Cookie Consent */}
+      {/* Enhanced Cookie Consent */}
       {!cookieConsent && (
-        <div className="fixed bottom-0 w-full bg-background border-t p-4 z-50">
-          <div className="container mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Cookie className="h-6 w-6 text-primary" />
-              <p className="text-sm">
-                We use cookies to enhance your experience. By continuing to visit this site you agree to our use of cookies.
-              </p>
-            </div>
-            <div className="flex gap-4">
-              <Button variant="outline" onClick={() => setCookieConsent(true)}>
-                Decline
-              </Button>
-              <Button onClick={() => setCookieConsent(true)}>
-                Accept
-              </Button>
-            </div>
+        <div className="fixed bottom-6 w-full z-50 px-4">
+          <div className="container mx-auto">
+            <Card className="bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/75 shadow-lg border-primary/10">
+              <CardContent className="p-6">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="hidden sm:flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                      <Cookie className="h-6 w-6 text-primary" />
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="font-semibold leading-none tracking-tight">Cookie Preferences</h4>
+                      <p className="text-sm text-muted-foreground">
+                        We use cookies to enhance your experience and analyze our website traffic.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setCookieConsent(true)}
+                      className="shadow-sm hover:bg-secondary"
+                    >
+                      Decline All
+                    </Button>
+                    <Button 
+                      onClick={() => setCookieConsent(true)}
+                      className="shadow-sm bg-primary hover:bg-primary/90"
+                    >
+                      Accept All
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       )}
