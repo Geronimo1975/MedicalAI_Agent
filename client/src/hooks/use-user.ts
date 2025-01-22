@@ -9,29 +9,24 @@ type User = {
   specialty?: string | null;
 }
 
-async function handleRequest(
+async function handleAuthRequest(
   url: string,
   method: string,
   body?: { username: string; password: string }
-): Promise<{ message?: string; error?: string }> {
-  try {
-    const response = await fetch(url, {
-      method,
-      headers: body ? { "Content-Type": "application/json" } : undefined,
-      body: body ? JSON.stringify(body) : undefined,
-      credentials: "include",
-    });
+): Promise<User> {
+  const response = await fetch(url, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+    credentials: "include",
+  });
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || response.statusText);
-    }
-
-    return data;
-  } catch (error: any) {
-    throw new Error(error.message || 'An error occurred');
+  if (!response.ok) {
+    const data = await response.text();
+    throw new Error(data || response.statusText);
   }
+
+  return response.json();
 }
 
 async function fetchUser(): Promise<User | null> {
@@ -66,14 +61,14 @@ export function useUser() {
 
   const loginMutation = useMutation({
     mutationFn: (credentials: { username: string; password: string }) => 
-      handleRequest('/api/auth/login', 'POST', credentials),
+      handleAuthRequest('/api/auth/login', 'POST', credentials),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
     },
   });
 
   const logoutMutation = useMutation({
-    mutationFn: () => handleRequest('/api/auth/logout', 'POST'),
+    mutationFn: () => handleAuthRequest('/api/auth/logout', 'POST'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
     },
@@ -81,7 +76,7 @@ export function useUser() {
 
   return {
     user,
-    isLoading,
+    isLoading: isLoading || loginMutation.isPending || logoutMutation.isPending,
     error,
     login: loginMutation.mutateAsync,
     logout: logoutMutation.mutateAsync,

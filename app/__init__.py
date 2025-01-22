@@ -7,7 +7,7 @@ from datetime import timedelta
 import os
 import logging
 from logging.handlers import RotatingFileHandler
-from sqlalchemy import event, DDL
+from flask_session import Session
 
 # Initialize extensions
 db = SQLAlchemy()
@@ -34,22 +34,34 @@ def create_app():
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-please-change')
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+
+    # Session configuration
+    app.config['SESSION_TYPE'] = 'sqlalchemy'
+    app.config['SESSION_SQLALCHEMY'] = db
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
-    app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=7)
     app.config['REMEMBER_COOKIE_SAMESITE'] = 'Lax'
+    app.config['REMEMBER_COOKIE_SECURE'] = False  # Set to True in production
 
     # Configure CORS to allow credentials
     CORS(app, resources={
-        "/api/*": {"origins": ["http://localhost:5000"], "supports_credentials": True}
+        r"/api/*": {
+            "origins": ["http://localhost:5000"],
+            "supports_credentials": True,
+            "allow_headers": ["Content-Type", "Authorization"],
+            "expose_headers": ["Content-Range", "X-Content-Range"]
+        }
     })
 
     # Initialize extensions with app
     db.init_app(app)
+    Session(app)
     login_manager.init_app(app)
     login_manager.login_view = 'auth.login'
-    migrate.init_app(app, db, compare_type=True)
+    migrate.init_app(app, db)
 
     # Import and register blueprints
     from .auth import bp as auth_bp
@@ -57,18 +69,7 @@ def create_app():
 
     # Initialize database
     with app.app_context():
-        try:
-            # Drop schema and recreate it to ensure a clean slate
-            db.session.execute('DROP SCHEMA public CASCADE')
-            db.session.execute('CREATE SCHEMA public')
-            db.session.commit()
-
-            # Create all tables fresh
-            db.create_all()
-            app.logger.info('Database tables created successfully')
-        except Exception as e:
-            db.session.rollback()
-            app.logger.error(f'Error managing database tables: {str(e)}')
-            raise
+        db.create_all()
+        app.logger.info('Database tables created successfully')
 
     return app
