@@ -1,0 +1,79 @@
+{
+  "symptoms": [
+    {
+      "id": "fever",
+      "name": "Fever",
+      "category": "General",
+      "severity": "MODERATE",
+      "related_conditions": ["infection", "inflammation", "viral_infection", "bacterial_infection"],
+      "risk_factors": {
+        "age_65_plus": 1.5,
+        "immunocompromised": 2.0,
+        "diabetes": 1.3
+      }
+    },
+    {
+      "id": "shortness_of_breath",
+      "name": "Shortness of Breath",
+      "category": "Respiratory",
+      "severity": "HIGH",
+      "related_conditions": ["respiratory_infection", "cardiac_condition", "pulmonary_embolism", "asthma"],
+      "risk_factors": {
+        "smoking": 1.5,
+        "asthma": 2.0,
+        "age_65_plus": 1.3,
+        "obesity": 1.4
+      }
+    },
+    {
+      "id": "chest_pain",
+      "name": "Chest Pain",
+      "category": "Cardiovascular",
+      "severity": "CRITICAL",
+      "related_conditions": ["heart_attack", "angina", "pulmonary_embolism", "costochondritis"],
+      "risk_factors": {
+        "smoking": 1.8,
+        "hypertension": 1.6,
+        "high_cholesterol": 1.5,
+        "diabetes": 1.4,
+        "age_65_plus": 1.7
+      }
+    },
+    {
+      "id": "headache",
+      "name": "Headache",
+      "category": "Neurological",
+      "severity": "MODERATE",
+      "related_conditions": ["migraine", "tension_headache", "sinusitis", "hypertension"],
+      "risk_factors": {
+        "hypertension": 1.3,
+        "stress": 1.4,
+        "dehydration": 1.2
+      }
+    },
+    {
+      "id": "fatigue",
+      "name": "Fatigue",
+      "category": "General",
+      "severity": "LOW",
+      "related_conditions": ["viral_infection", "depression", "anemia", "thyroid_disorder"],
+      "risk_factors": {
+        "age_65_plus": 1.2,
+        "chronic_illness": 1.5,
+        "immunocompromised": 1.3
+      }
+    },
+    {
+      "id": "nausea",
+      "name": "Nausea",
+      "category": "Gastrointestinal",
+      "severity": "MODERATE",
+      "related_conditions": ["gastroenteritis", "food_poisoning", "migraine", "pregnancy"],
+      "risk_factors": {
+        "pregnancy": 1.3,
+        "chemotherapy": 1.8,
+        "vestibular_disorder": 1.4
+      }
+    }
+  ]
+}
