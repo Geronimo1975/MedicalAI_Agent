@@ -66,18 +66,26 @@ export default function Home() {
       <nav className="fixed top-0 w-full bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-50 border-b">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-              HealthAI
-            </h1>
+            <Link href="/">
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent cursor-pointer">
+                HealthAI
+              </h1>
+            </Link>
           </div>
           <div className="flex items-center space-x-4">
-            <Button variant="ghost">Features</Button>
+            <Link href="/features">
+              <Button variant="ghost">Features</Button>
+            </Link>
             <Button variant="ghost">Pricing</Button>
             <Link href="/symptoms">
               <Button variant="ghost">Symptoms</Button>
             </Link>
-            <Button variant="ghost">About</Button>
-            <Button variant="ghost">Contact</Button>
+            <Link href="/about">
+              <Button variant="ghost">About</Button>
+            </Link>
+            <Link href="/contact">
+              <Button variant="ghost">Contact</Button>
+            </Link>
             <Button>Get Started</Button>
           </div>
         </div>
@@ -106,8 +114,8 @@ export default function Home() {
           <h2 className="text-3xl font-bold text-center mb-12">Choose Your Care Level</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {pricingPlans.map((plan) => (
-              <Card 
-                key={plan.name} 
+              <Card
+                key={plan.name}
                 className={plan.highlighted ? "border-primary shadow-lg" : ""}
               >
                 {plan.highlighted && (
@@ -160,14 +168,14 @@ export default function Home() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       onClick={() => setCookieConsent(true)}
                       className="shadow-sm hover:bg-secondary"
                     >
                       Decline All
                     </Button>
-                    <Button 
+                    <Button
                       onClick={() => setCookieConsent(true)}
                       className="shadow-sm bg-primary hover:bg-primary/90"
                     >
