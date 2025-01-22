@@ -2,11 +2,154 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { db } from "@db";
-import { appointments, medicalRecords, chatSessions } from "@db/schema";
+import { appointments, medicalRecords, chatSessions, messages } from "@db/schema";
 import { eq, and, desc, gte, sql } from "drizzle-orm";
 
 export function registerRoutes(app: Express): Server {
   setupAuth(app);
+
+  // Messages endpoints
+  app.post("/api/messages", async (req, res) => {
+    try {
+      const { recipientId, content, subject, category } = req.body;
+      const senderId = req.user?.id;
+
+      if (!senderId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const [message] = await db
+        .insert(messages)
+        .values({
+          senderId,
+          recipientId,
+          content,
+          subject,
+          category,
+        })
+        .returning();
+
+      res.json(message);
+    } catch (error) {
+      console.error("Message creation error:", error);
+      res.status(500).json({ error: "Failed to send message" });
+    }
+  });
+
+  app.get("/api/messages", async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      const { folder = "inbox" } = req.query;
+
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      let query = db
+        .select({
+          id: messages.id,
+          senderId: messages.senderId,
+          recipientId: messages.recipientId,
+          subject: messages.subject,
+          content: messages.content,
+          status: messages.status,
+          category: messages.category,
+          createdAt: messages.createdAt,
+          readAt: messages.readAt,
+        })
+        .from(messages);
+
+      if (folder === "inbox") {
+        query = query.where(eq(messages.recipientId, userId));
+      } else if (folder === "sent") {
+        query = query.where(eq(messages.senderId, userId));
+      }
+
+      query = query.orderBy(desc(messages.createdAt));
+
+      const messageList = await query;
+      res.json(messageList);
+    } catch (error) {
+      console.error("Message fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch messages" });
+    }
+  });
+
+  app.get("/api/messages/:id", async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      const messageId = parseInt(req.params.id);
+
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const [message] = await db
+        .select()
+        .from(messages)
+        .where(
+          and(
+            eq(messages.id, messageId),
+            sql`(${messages.senderId} = ${userId} OR ${messages.recipientId} = ${userId})`
+          )
+        );
+
+      if (!message) {
+        return res.status(404).json({ error: "Message not found" });
+      }
+
+      // Mark message as read if recipient is viewing
+      if (message.recipientId === userId && message.status === "unread") {
+        await db
+          .update(messages)
+          .set({
+            status: "read",
+            readAt: new Date(),
+          })
+          .where(eq(messages.id, messageId));
+      }
+
+      res.json(message);
+    } catch (error) {
+      console.error("Message fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch message" });
+    }
+  });
+
+  app.put("/api/messages/:id/status", async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      const messageId = parseInt(req.params.id);
+      const { status } = req.body;
+
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const [message] = await db
+        .update(messages)
+        .set({
+          status,
+          ...(status === "read" ? { readAt: new Date() } : {}),
+        })
+        .where(
+          and(
+            eq(messages.id, messageId),
+            eq(messages.recipientId, userId)
+          )
+        )
+        .returning();
+
+      if (!message) {
+        return res.status(404).json({ error: "Message not found" });
+      }
+
+      res.json(message);
+    } catch (error) {
+      console.error("Message status update error:", error);
+      res.status(500).json({ error: "Failed to update message status" });
+    }
+  });
 
   // Symptom Journey endpoint
   app.get("/api/symptom-journey", async (req, res) => {

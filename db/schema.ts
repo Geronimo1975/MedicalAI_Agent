@@ -11,6 +11,20 @@ export const users = pgTable("users", {
   specialty: text("specialty"),
 });
 
+export const messages = pgTable("messages", {
+  id: serial("id").primaryKey(),
+  senderId: integer("sender_id").references(() => users.id).notNull(),
+  recipientId: integer("recipient_id").references(() => users.id).notNull(),
+  content: text("content").notNull(),
+  subject: text("subject").notNull(),
+  status: text("status", { enum: ["unread", "read", "archived"] }).notNull().default("unread"),
+  category: text("category", { enum: ["general", "appointment", "prescription", "urgent", "test_results"] }).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  readAt: timestamp("read_at"),
+  attachmentUrl: text("attachment_url"),
+  isEncrypted: boolean("is_encrypted").notNull().default(true),
+});
+
 export const appointments = pgTable("appointments", {
   id: serial("id").primaryKey(),
   patientId: integer("patient_id").references(() => users.id).notNull(),
@@ -50,6 +64,11 @@ export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
 export type InsertUser = typeof users.$inferInsert;
 export type SelectUser = typeof users.$inferSelect;
+
+export const insertMessageSchema = createInsertSchema(messages);
+export const selectMessageSchema = createSelectSchema(messages);
+export type InsertMessage = typeof messages.$inferInsert;
+export type SelectMessage = typeof messages.$inferSelect;
 
 export const insertAppointmentSchema = createInsertSchema(appointments);
 export const selectAppointmentSchema = createSelectSchema(appointments);
