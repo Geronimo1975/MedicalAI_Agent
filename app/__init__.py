@@ -19,6 +19,8 @@ def create_app():
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev')
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
 
     # Configure CORS to allow credentials
     CORS(app, supports_credentials=True, resources={
@@ -28,6 +30,7 @@ def create_app():
     # Initialize extensions
     db.init_app(app)
     login_manager.init_app(app)
+    login_manager.login_view = 'auth.login'  # Specify the login view
     migrate.init_app(app, db)
     babel.init_app(app)
 
@@ -40,14 +43,8 @@ def create_app():
     app.register_blueprint(api_bp, url_prefix='/api')
     app.register_blueprint(chat_bp, url_prefix='/api/chat')
 
-    # Ensure the instance and migrations directories exist
+    # Create database tables
     with app.app_context():
-        if not os.path.exists('migrations'):
-            from flask_migrate import init as init_migrations
-            init_migrations('migrations')
-            from flask_migrate import migrate as run_migrations
-            run_migrations()
-            from flask_migrate import upgrade as upgrade_migrations
-            upgrade_migrations()
+        db.create_all()
 
     return app

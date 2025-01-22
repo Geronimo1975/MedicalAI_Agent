@@ -1,20 +1,16 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
-import Home from "@/pages/home";
-import Features from "@/pages/features";
-import About from "@/pages/about";
-import Contact from "@/pages/contact";
-import SymptomVisualization from "@/pages/symptom-visualization";
 import AuthPage from "@/pages/auth-page";
 import Dashboard from "@/pages/dashboard";
-import { Loader2 } from "lucide-react";
 import { useUser } from "@/hooks/use-user";
+import { Loader2 } from "lucide-react";
 
 function PrivateRoute({ component: Component, ...rest }: any) {
   const { user, isLoading } = useUser();
+  const [, setLocation] = useLocation();
 
   if (isLoading) {
     return (
@@ -25,7 +21,7 @@ function PrivateRoute({ component: Component, ...rest }: any) {
   }
 
   if (!user) {
-    window.location.href = '/auth';
+    setLocation('/auth');
     return null;
   }
 
@@ -34,6 +30,7 @@ function PrivateRoute({ component: Component, ...rest }: any) {
 
 function Router() {
   const { user, isLoading } = useUser();
+  const [, setLocation] = useLocation();
 
   if (isLoading) {
     return (
@@ -43,20 +40,25 @@ function Router() {
     );
   }
 
+  // If user is logged in and tries to access auth page, redirect to dashboard
+  if (user && window.location.pathname === '/auth') {
+    setLocation('/dashboard');
+    return null;
+  }
+
   return (
     <Switch>
-      <Route path="/" component={Home} />
-      <Route path="/features" component={Features} />
-      <Route path="/about" component={About} />
-      <Route path="/contact" component={Contact} />
       <Route path="/auth" component={AuthPage} />
       <Route path="/dashboard">
         {() => <PrivateRoute component={Dashboard} />}
       </Route>
-      <Route path="/symptoms">
-        {() => <PrivateRoute component={SymptomVisualization} />}
+      <Route>
+        {() => {
+          // Redirect to auth if not logged in, dashboard if logged in
+          setLocation(user ? '/dashboard' : '/auth');
+          return null;
+        }}
       </Route>
-      <Route component={NotFound} />
     </Switch>
   );
 }
