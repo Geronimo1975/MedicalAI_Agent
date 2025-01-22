@@ -11,21 +11,8 @@ class User(UserMixin, db.Model):
     name = db.Column(db.String(64), nullable=False)
     role = db.Column(db.String(20), nullable=False)  # patient, doctor, admin
     specialty = db.Column(db.String(64))  # for doctors
-    preferred_language = db.Column(db.String(10), default='en')  # Add language preference
-
-    appointments_as_doctor = db.relationship('Appointment', backref='doctor', 
-                                          foreign_keys='Appointment.doctor_id', lazy=True)
-    appointments_as_patient = db.relationship('Appointment', backref='patient', 
-                                           foreign_keys='Appointment.patient_id', lazy=True)
-    prescriptions_as_doctor = db.relationship('Prescription', backref='doctor',
-                                           foreign_keys='Prescription.doctor_id', lazy=True)
-    prescriptions_as_patient = db.relationship('Prescription', backref='patient',
-                                            foreign_keys='Prescription.patient_id', lazy=True)
-    documents_shared_by = db.relationship('MedicalDocument', backref='shared_by',
-                                       foreign_keys='MedicalDocument.shared_by_id', lazy=True)
-    documents_shared_with = db.relationship('MedicalDocument', backref='shared_with',
-                                         foreign_keys='MedicalDocument.shared_with_id', lazy=True)
-    chat_sessions = db.relationship('ChatSession', backref='user', lazy=True)
+    preferred_language = db.Column(db.String(10), default='en')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)

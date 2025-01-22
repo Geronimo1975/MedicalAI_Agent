@@ -9,8 +9,28 @@ import About from "@/pages/about";
 import Contact from "@/pages/contact";
 import SymptomVisualization from "@/pages/symptom-visualization";
 import AuthPage from "@/pages/auth-page";
+import Dashboard from "@/pages/dashboard";
 import { Loader2 } from "lucide-react";
 import { useUser } from "@/hooks/use-user";
+
+function PrivateRoute({ component: Component, ...rest }: any) {
+  const { user, isLoading } = useUser();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-border" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    window.location.href = '/auth';
+    return null;
+  }
+
+  return <Component {...rest} />;
+}
 
 function Router() {
   const { user, isLoading } = useUser();
@@ -29,8 +49,13 @@ function Router() {
       <Route path="/features" component={Features} />
       <Route path="/about" component={About} />
       <Route path="/contact" component={Contact} />
-      <Route path="/symptoms" component={SymptomVisualization} />
       <Route path="/auth" component={AuthPage} />
+      <Route path="/dashboard">
+        {() => <PrivateRoute component={Dashboard} />}
+      </Route>
+      <Route path="/symptoms">
+        {() => <PrivateRoute component={SymptomVisualization} />}
+      </Route>
       <Route component={NotFound} />
     </Switch>
   );
