@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, boolean, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 
 export const users = pgTable("users", {
@@ -60,6 +60,28 @@ export const chatSessions = pgTable("chat_sessions", {
   recommendations: text("recommendations"),
 });
 
+export const preventiveCareRecommendations = pgTable("preventive_care_recommendations", {
+  id: serial("id").primaryKey(),
+  patientId: integer("patient_id").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  category: text("category", {
+    enum: ["lifestyle", "screening", "vaccination", "nutrition", "mental_health"]
+  }).notNull(),
+  priority: text("priority", {
+    enum: ["high", "medium", "low"]
+  }).notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  reasoning: text("reasoning").notNull(),
+  suggestedTimeline: text("suggested_timeline").notNull(),
+  status: text("status", {
+    enum: ["pending", "scheduled", "completed", "declined"]
+  }).notNull().default("pending"),
+  aiConfidenceScore: integer("ai_confidence_score").notNull(),
+  dataPoints: jsonb("data_points").notNull(),
+  sourceReferences: jsonb("source_references"),
+});
+
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
 export type InsertUser = typeof users.$inferInsert;
@@ -84,3 +106,8 @@ export const insertChatSessionSchema = createInsertSchema(chatSessions);
 export const selectChatSessionSchema = createSelectSchema(chatSessions);
 export type InsertChatSession = typeof chatSessions.$inferInsert;
 export type SelectChatSession = typeof chatSessions.$inferSelect;
+
+export const insertPreventiveCareRecommendationSchema = createInsertSchema(preventiveCareRecommendations);
+export const selectPreventiveCareRecommendationSchema = createSelectSchema(preventiveCareRecommendations);
+export type InsertPreventiveCareRecommendation = typeof preventiveCareRecommendations.$inferInsert;
+export type SelectPreventiveCareRecommendation = typeof preventiveCareRecommendations.$inferSelect;

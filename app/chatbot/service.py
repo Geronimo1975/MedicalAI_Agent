@@ -9,6 +9,7 @@ from .document_processor import DocumentProcessor
 from .risk_assessment import RiskAssessment
 from ..models import ChatSession, ChatMessage, db
 from ..translations import TranslationService
+from .preventive_care import PreventiveCareService
 
 SYSTEM_PROMPT = """You are an advanced medical pre-screening assistant. Your role is to:
 
@@ -68,6 +69,7 @@ class ChatbotService:
     _doc_processor = DocumentProcessor()
     _risk_assessor = RiskAssessment()
     _translator = TranslationService()
+    _preventive_care = PreventiveCareService()
 
     @classmethod
     def get_model(cls) -> BaseChatModel:
@@ -124,7 +126,7 @@ class ChatbotService:
 
     @classmethod
     def get_response(cls, session_id: int, user_message: str, target_lang: str = 'en') -> str:
-        """Get a response from the chatbot with integrated risk assessment and pattern recognition."""
+        """Get a response from the chatbot with integrated risk assessment and recommendations."""
         source_lang = cls._translator.detect_language(user_message)
         english_message = user_message if source_lang == 'en' else cls._translator.translate_text(user_message, 'en', source_lang)
 
@@ -147,6 +149,21 @@ class ChatbotService:
                         'severity': session.severity_score or 5
                     })
 
+        # Extract patient factors and generate preventive care recommendations
+        patient_factors = cls._extract_patient_factors(messages)
+
+        # Mock patient data (in production, this would come from the user's profile)
+        patient_data = {
+            'age': 45,  # This should be fetched from actual patient profile
+            'gender': 'unknown',  # This should be fetched from actual patient profile
+        }
+
+        preventive_recommendations = cls._preventive_care.generate_recommendations(
+            patient_data=patient_data,
+            symptom_history=symptom_history,
+            risk_factors=patient_factors
+        )
+
         # Analyze patterns
         patterns = cls._risk_assessor.analyze_temporal_patterns(symptom_history)
         insights = cls._risk_assessor.generate_insights(patterns)
@@ -154,8 +171,9 @@ class ChatbotService:
         context = cls._doc_processor.get_relevant_context(english_message)
 
         risk_assessment_info = ""
+        preventive_care_info = ""
+
         if symptoms:
-            patient_factors = cls._extract_patient_factors(messages)
             risk_scores = cls._risk_assessor.calculate_risk_score(symptoms, patient_factors)
             suggested_symptoms = cls._risk_assessor.suggest_additional_symptoms(symptoms)
             recommendations = cls._risk_assessor.get_severity_recommendations(risk_scores['total_risk'])
@@ -178,11 +196,23 @@ class ChatbotService:
                 risk_assessment_info += f"\n\nSuggested symptoms to monitor:\n" \
                                       f"- {', '.join(suggested_symptoms)}"
 
+        # Add preventive care recommendations
+        if preventive_recommendations:
+            preventive_care_info = "\n\nPreventive Care Recommendations:\n"
+            for rec in preventive_recommendations[:3]:  # Show top 3 recommendations
+                preventive_care_info += (
+                    f"\n{rec.priority.upper()} Priority: {rec.title}\n"
+                    f"- {rec.description}\n"
+                    f"- Why: {rec.reasoning}\n"
+                    f"- When: {rec.suggested_timeline}\n"
+                )
+
         # Update message content with context and analysis
         messages[-1]["content"] = (
             f"Context from medical documentation:\n{context}\n\n"
             f"User message: {english_message}\n"
             f"{risk_assessment_info}"
+            f"{preventive_care_info}"
         )
 
         try:
