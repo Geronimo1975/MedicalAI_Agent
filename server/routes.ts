@@ -2,8 +2,8 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { db } from "@db";
-import { appointments, medicalRecords, chatSessions, messages, doctorSchedule, users } from "@db/schema";
-import { eq, and, desc, gte, sql } from "drizzle-orm";
+import { appointments, medicalRecords, chatSessions, messages, doctorSchedule, users, sessionFeedback } from "@db/schema";
+import { eq, and, desc, gte, sql, or } from "drizzle-orm";
 
 export function registerRoutes(app: Express): Server {
   setupAuth(app);
@@ -551,6 +551,152 @@ export function registerRoutes(app: Express): Server {
       res.json(record);
     } catch (error) {
       res.status(500).json({ error: "Failed to create medical record" });
+    }
+  });
+
+  // Session Feedback endpoints
+  app.post("/api/session-feedback", async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const [feedback] = await db
+        .insert(sessionFeedback)
+        .values({
+          ...req.body,
+          patientId: userId,
+          metrics: {
+            averageLatency: req.body.metrics?.averageLatency || 0,
+            packetLoss: req.body.metrics?.packetLoss || 0,
+            frameRate: req.body.metrics?.frameRate || 0,
+            resolution: req.body.metrics?.resolution || "unknown",
+            browserInfo: req.body.metrics?.browserInfo || "unknown",
+            deviceType: req.body.metrics?.deviceType || "unknown",
+          },
+        })
+        .returning();
+
+      res.json(feedback);
+    } catch (error) {
+      console.error("Session feedback submission error:", error);
+      res.status(500).json({ error: "Failed to submit session feedback" });
+    }
+  });
+
+  app.get("/api/session-feedback/analytics", async (req, res) => {
+    try {
+      const { doctorId, timeRange = 'month' } = req.query;
+
+      if (!doctorId) {
+        return res.status(400).json({ error: "Doctor ID is required" });
+      }
+
+      const startDate = new Date();
+      switch (timeRange) {
+        case 'year':
+          startDate.setFullYear(startDate.getFullYear() - 1);
+          break;
+        case 'month':
+          startDate.setMonth(startDate.getMonth() - 1);
+          break;
+        case 'week':
+          startDate.setDate(startDate.getDate() - 7);
+          break;
+      }
+
+      const feedbacks = await db
+        .select()
+        .from(sessionFeedback)
+        .where(
+          and(
+            eq(sessionFeedback.doctorId, Number(doctorId)),
+            gte(sessionFeedback.submittedAt, startDate)
+          )
+        );
+
+      // Calculate analytics
+      const analytics = {
+        totalSessions: feedbacks.length,
+        averageRatings: {
+          audioQuality: 0,
+          videoQuality: 0,
+          connectionStability: 0,
+          doctorCommunication: 0,
+          overallSatisfaction: 0,
+        },
+        technicalIssues: {} as Record<string, number>,
+        followupRequired: 0,
+        averageSessionDuration: 0,
+        trends: {
+          weekly: [] as any[],
+          satisfaction: [] as any[],
+        },
+      };
+
+      if (feedbacks.length > 0) {
+        // Calculate averages
+        analytics.averageRatings.audioQuality =
+          feedbacks.reduce((sum, f) => sum + f.audioQuality, 0) / feedbacks.length;
+        analytics.averageRatings.videoQuality =
+          feedbacks.reduce((sum, f) => sum + f.videoQuality, 0) / feedbacks.length;
+        analytics.averageRatings.connectionStability =
+          feedbacks.reduce((sum, f) => sum + f.connectionStability, 0) / feedbacks.length;
+        analytics.averageRatings.doctorCommunication =
+          feedbacks.reduce((sum, f) => sum + f.doctorCommunication, 0) / feedbacks.length;
+        analytics.averageRatings.overallSatisfaction =
+          feedbacks.reduce((sum, f) => sum + f.overallSatisfaction, 0) / feedbacks.length;
+
+        // Count technical issues
+        feedbacks.forEach(feedback => {
+          feedback.technicalIssues?.forEach(issue => {
+            analytics.technicalIssues[issue] = (analytics.technicalIssues[issue] || 0) + 1;
+          });
+        });
+
+        // Calculate other metrics
+        analytics.followupRequired =
+          feedbacks.filter(f => f.followupRequired).length;
+        analytics.averageSessionDuration =
+          feedbacks.reduce((sum, f) => sum + f.sessionDuration, 0) / feedbacks.length;
+      }
+
+      res.json(analytics);
+    } catch (error) {
+      console.error("Session feedback analytics error:", error);
+      res.status(500).json({ error: "Failed to fetch feedback analytics" });
+    }
+  });
+
+  app.get("/api/session-feedback/:sessionId", async (req, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const [feedback] = await db
+        .select()
+        .from(sessionFeedback)
+        .where(
+          and(
+            eq(sessionFeedback.sessionId, Number(req.params.sessionId)),
+            or(
+              eq(sessionFeedback.patientId, userId),
+              eq(sessionFeedback.doctorId, userId)
+            )
+          )
+        );
+
+      if (!feedback) {
+        return res.status(404).json({ error: "Feedback not found" });
+      }
+
+      res.json(feedback);
+    } catch (error) {
+      console.error("Session feedback fetch error:", error);
+      res.status(500).json({ error: "Failed to fetch session feedback" });
     }
   });
 

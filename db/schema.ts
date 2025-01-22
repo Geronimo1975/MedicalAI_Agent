@@ -106,6 +106,24 @@ export const doctorSchedule = pgTable("doctor_schedule", {
   specialtyEquipment: text("specialty_equipment").array(),
 });
 
+export const sessionFeedback = pgTable("session_feedback", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").references(() => appointments.id).notNull(),
+  patientId: integer("patient_id").references(() => users.id).notNull(),
+  doctorId: integer("doctor_id").references(() => users.id).notNull(),
+  submittedAt: timestamp("submitted_at").notNull().defaultNow(),
+  audioQuality: integer("audio_quality").notNull(), // 1-5 rating
+  videoQuality: integer("video_quality").notNull(), // 1-5 rating
+  connectionStability: integer("connection_stability").notNull(), // 1-5 rating
+  doctorCommunication: integer("doctor_communication").notNull(), // 1-5 rating
+  overallSatisfaction: integer("overall_satisfaction").notNull(), // 1-5 rating
+  technicalIssues: text("technical_issues").array(),
+  suggestions: text("suggestions"),
+  followupRequired: boolean("followup_required").notNull().default(false),
+  sessionDuration: integer("session_duration").notNull(), // in minutes
+  metrics: jsonb("metrics").notNull(), // Detailed metrics like latency, drops, etc.
+});
+
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
 export type InsertUser = typeof users.$inferInsert;
@@ -140,3 +158,8 @@ export const insertDoctorScheduleSchema = createInsertSchema(doctorSchedule);
 export const selectDoctorScheduleSchema = createSelectSchema(doctorSchedule);
 export type InsertDoctorSchedule = typeof doctorSchedule.$inferInsert;
 export type SelectDoctorSchedule = typeof doctorSchedule.$inferSelect;
+
+export const insertSessionFeedbackSchema = createInsertSchema(sessionFeedback);
+export const selectSessionFeedbackSchema = createSelectSchema(sessionFeedback);
+export type InsertSessionFeedback = typeof sessionFeedback.$inferInsert;
+export type SelectSessionFeedback = typeof sessionFeedback.$inferSelect;
