@@ -1,0 +1,30 @@
+2025-01-22 22:34:11,917 INFO: Telemedicine startup [in /home/runner/workspace/app/__init__.py:30]
+2025-01-22 22:34:15,903 INFO: Database tables created successfully [in /home/runner/workspace/app/__init__.py:62]
+2025-01-22 22:34:16,684 INFO: Telemedicine startup [in /home/runner/workspace/app/__init__.py:30]
+2025-01-22 22:34:17,751 INFO: Database tables created successfully [in /home/runner/workspace/app/__init__.py:62]
+2025-01-22 22:34:18,547 INFO: Telemedicine startup [in /home/runner/workspace/app/__init__.py:30]
+2025-01-22 22:34:19,639 INFO: Database tables created successfully [in /home/runner/workspace/app/__init__.py:62]
+2025-01-22 22:34:41,216 INFO: Telemedicine startup [in /home/runner/workspace/app/__init__.py:30]
+2025-01-22 22:34:42,340 INFO: Database tables created successfully [in /home/runner/workspace/app/__init__.py:62]
+2025-01-22 22:34:50,041 INFO: Telemedicine startup [in /home/runner/workspace/app/__init__.py:30]
+2025-01-22 22:34:51,172 INFO: Database tables created successfully [in /home/runner/workspace/app/__init__.py:62]
+2025-01-22 22:37:17,957 INFO: Telemedicine startup [in /home/runner/workspace/app/__init__.py:30]
+2025-01-22 22:37:21,583 INFO: Database tables created successfully [in /home/runner/workspace/app/__init__.py:58]
+2025-01-22 22:37:22,527 INFO: Telemedicine startup [in /home/runner/workspace/app/__init__.py:30]
+2025-01-22 22:37:23,657 INFO: Database tables created successfully [in /home/runner/workspace/app/__init__.py:58]
+2025-01-22 22:37:31,410 INFO: Telemedicine startup [in /home/runner/workspace/app/__init__.py:30]
+2025-01-22 22:37:34,455 INFO: Database tables created successfully [in /home/runner/workspace/app/__init__.py:58]
+2025-01-22 22:38:12,515 INFO: Telemedicine startup [in /home/runner/workspace/app/__init__.py:30]
+2025-01-22 22:38:14,009 ERROR: Error managing database tables: (psycopg2.errors.DependentObjectsStillExist) cannot drop table users because other objects depend on it
+DETAIL:  constraint appointments_patient_id_users_id_fk on table appointments depends on table users
+constraint appointments_doctor_id_users_id_fk on table appointments depends on table users
+constraint medical_records_patient_id_users_id_fk on table medical_records depends on table users
+constraint medical_records_doctor_id_users_id_fk on table medical_records depends on table users
+constraint doctor_schedule_doctor_id_fkey on table doctor_schedule depends on table users
+constraint session_feedback_patient_id_fkey on table session_feedback depends on table users
+constraint session_feedback_doctor_id_fkey on table session_feedback depends on table users
+HINT:  Use DROP ... CASCADE to drop the dependent objects too.
+
+[SQL: 
+DROP TABLE users]
+(Background on this error at: https://sqlalche.me/e/20/2j85) [in /home/runner/workspace/app/__init__.py:66]

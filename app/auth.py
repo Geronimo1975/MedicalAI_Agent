@@ -30,7 +30,6 @@ def register():
         return jsonify({'error': 'Email already exists'}), 400
 
     try:
-        # Create new user
         user = User(
             username=data['username'],
             email=data['email'],
@@ -43,9 +42,7 @@ def register():
         db.session.add(user)
         db.session.commit()
 
-        # Log user in after registration
         login_user(user, remember=True)
-
         return jsonify(user.to_dict())
     except Exception as e:
         db.session.rollback()
@@ -53,7 +50,6 @@ def register():
 
 @bp.route('/login', methods=['POST'])
 def login():
-    # If user is already logged in, return their info
     if current_user.is_authenticated:
         return jsonify(current_user.to_dict())
 
@@ -79,17 +75,3 @@ def get_user():
     if current_user.is_authenticated:
         return jsonify(current_user.to_dict())
     return jsonify(None)
-
-@bp.route('/update-preferences', methods=['POST'])
-@login_required
-def update_preferences():
-    data = request.get_json()
-
-    if 'preferred_language' in data:
-        current_user.preferred_language = data['preferred_language']
-        db.session.commit()
-
-    return jsonify({
-        'message': 'Preferences updated successfully',
-        'preferred_language': current_user.preferred_language
-    })
