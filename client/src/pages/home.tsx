@@ -1,14 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertCircle, CheckCircle2, Cookie, Shield } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Cookie, CheckCircle2 } from "lucide-react";
 import { Link } from "wouter";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { AccessibilityMenu } from "@/components/ui/accessibility-menu";
@@ -62,8 +55,7 @@ const pricingPlans = [
 
 export default function Home() {
   const [cookieConsent, setCookieConsent] = useState(false);
-  const [gdprDialog, setGdprDialog] = useState(true);
-  const { user } = useUser();
+  const { user, logout } = useUser();
 
   const subscriptionTier = user?.subscription_tier || null;
 
@@ -98,7 +90,20 @@ export default function Home() {
             </Link>
             <ThemeToggle />
             <AccessibilityMenu />
-            <Button>Get Started</Button>
+            {user ? (
+              <div className="flex items-center gap-2">
+                <Link href="/dashboard">
+                  <Button variant="outline">Dashboard</Button>
+                </Link>
+                <Button variant="ghost" onClick={() => logout()}>
+                  Logout
+                </Button>
+              </div>
+            ) : (
+              <Link href="/auth">
+                <Button>Login</Button>
+              </Link>
+            )}
           </div>
         </div>
       </nav>
@@ -113,8 +118,18 @@ export default function Home() {
             Get instant health insights, personalized care recommendations, and 24/7 support.
           </p>
           <div className="flex justify-center gap-4">
-            <Button size="lg">Start Free Trial</Button>
-            <Button size="lg" variant="outline">Learn More</Button>
+            {user ? (
+              <Link href="/dashboard">
+                <Button size="lg">Go to Dashboard</Button>
+              </Link>
+            ) : (
+              <>
+                <Link href="/auth">
+                  <Button size="lg">Start Free Trial</Button>
+                </Link>
+                <Button size="lg" variant="outline">Learn More</Button>
+              </>
+            )}
           </div>
         </div>
       </section>
@@ -197,43 +212,6 @@ export default function Home() {
           </div>
         </div>
       )}
-
-      <Dialog open={gdprDialog} onOpenChange={setGdprDialog}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle className="flex gap-2">
-              <Shield className="h-6 w-6 text-primary" />
-              Privacy Notice
-            </DialogTitle>
-            <DialogDescription>
-              Your privacy is important to us. This platform adheres to GDPR guidelines and ensures:
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <ul className="space-y-2">
-              <li className="flex items-start gap-2">
-                <AlertCircle className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                <span className="text-sm">Your personal data is securely stored and encrypted</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <AlertCircle className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                <span className="text-sm">You have the right to access, modify, or delete your data</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <AlertCircle className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                <span className="text-sm">We only collect data necessary for providing our services</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <AlertCircle className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                <span className="text-sm">Your data is never shared with third parties without consent</span>
-              </li>
-            </ul>
-            <Button className="w-full" onClick={() => setGdprDialog(false)}>
-              I Understand
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <ChatWidget 
         subscriptionTier={subscriptionTier} 
