@@ -6,6 +6,7 @@ import { appointments, medicalRecords, chatSessions, messages, doctorSchedule, u
 import { eq, and, desc, gte, sql, or } from "drizzle-orm";
 
 export function registerRoutes(app: Express): Server {
+  // Set up authentication routes and middleware
   setupAuth(app);
 
   // Translation endpoints - proxied to Flask backend
@@ -990,7 +991,7 @@ export function registerRoutes(app: Express): Server {
         const stats = doctorStats.get(feedback.doctorId);
         stats.totalSessions++;
         stats.averageRatings.audio += feedback.audioQuality;
-        stats.averageRatings.video += feedback.videoQuality;
+        stats.video += feedback.videoQuality;
         stats.connection += feedback.connectionStability;
         stats.averageRatings.communication += feedback.doctorCommunication;
         stats.averageRatings.overall += feedback.overallSatisfaction;
